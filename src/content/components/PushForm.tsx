@@ -70,7 +70,10 @@ export default function PushForm({ isOpen, onClose, onSuccess }: PushFormProps) 
       onSuccess();
     } catch (error) {
       console.error('压栈失败:', error);
-      alert('压栈失败，请重试');
+      const msg = error instanceof Error && error.message.includes('扩展已更新')
+        ? '扩展已更新，请刷新当前页面后重试'
+        : '压栈失败，请重试';
+      alert(msg);
     } finally {
       setIsSubmitting(false);
     }

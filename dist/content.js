@@ -7436,6 +7436,13 @@ var DropIt = (() => {
   };
 
   // src/utils/storage.ts
+  function isContextValid() {
+    try {
+      return !!chrome?.runtime?.id;
+    } catch {
+      return false;
+    }
+  }
   var StorageManager = class {
     /**
      * 获取 Chrome 存储对象
@@ -7444,9 +7451,18 @@ var DropIt = (() => {
       return area === "sync" ? chrome.storage.sync : chrome.storage.local;
     }
     /**
+     * 检查上下文有效性，无效则抛出友好错误
+     */
+    checkContext() {
+      if (!isContextValid()) {
+        throw new Error("\u6269\u5C55\u5DF2\u66F4\u65B0\uFF0C\u8BF7\u5237\u65B0\u9875\u9762\u540E\u91CD\u8BD5");
+      }
+    }
+    /**
      * 获取所有栈项
      */
     async getItems(area = "sync") {
+      this.checkContext();
       return new Promise((resolve, reject) => {
         this.getStorage(area).get([STORAGE_KEYS.ITEMS], (result) => {
           if (chrome.runtime.lastError) {
@@ -7461,6 +7477,7 @@ var DropIt = (() => {
      * 保存所有栈项
      */
     async setItems(items, area = "sync") {
+      this.checkContext();
       return new Promise((resolve, reject) => {
         this.getStorage(area).set({ [STORAGE_KEYS.ITEMS]: items }, () => {
           if (chrome.runtime.lastError) {
@@ -7475,6 +7492,7 @@ var DropIt = (() => {
      * 获取用户设置
      */
     async getSettings(area = "sync") {
+      this.checkContext();
       return new Promise((resolve, reject) => {
         this.getStorage(area).get([STORAGE_KEYS.SETTINGS], (result) => {
           if (chrome.runtime.lastError) {
@@ -7489,6 +7507,7 @@ var DropIt = (() => {
      * 更新用户设置
      */
     async updateSettings(settings, area = "sync") {
+      this.checkContext();
       return new Promise((resolve, reject) => {
         this.getStorage(area).get([STORAGE_KEYS.SETTINGS], (result) => {
           if (chrome.runtime.lastError) {
@@ -7909,7 +7928,8 @@ var DropIt = (() => {
         onSuccess();
       } catch (error) {
         console.error("\u538B\u6808\u5931\u8D25:", error);
-        alert("\u538B\u6808\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5");
+        const msg = error instanceof Error && error.message.includes("\u6269\u5C55\u5DF2\u66F4\u65B0") ? "\u6269\u5C55\u5DF2\u66F4\u65B0\uFF0C\u8BF7\u5237\u65B0\u5F53\u524D\u9875\u9762\u540E\u91CD\u8BD5" : "\u538B\u6808\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5";
+        alert(msg);
       } finally {
         setIsSubmitting(false);
       }

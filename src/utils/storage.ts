@@ -6,6 +6,18 @@ import { StackItem, Settings, STORAGE_KEYS, DEFAULT_SETTINGS } from '../types';
 export type StorageArea = 'sync' | 'local';
 
 /**
+ * 检查扩展上下文是否仍然有效
+ * 扩展被重新加载/更新后，旧的 content script 上下文会失效
+ */
+function isContextValid(): boolean {
+  try {
+    return !!(chrome?.runtime?.id);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 通用的存储操作类
  */
 class StorageManager {
@@ -17,9 +29,19 @@ class StorageManager {
   }
 
   /**
+   * 检查上下文有效性，无效则抛出友好错误
+   */
+  private checkContext(): void {
+    if (!isContextValid()) {
+      throw new Error('扩展已更新，请刷新页面后重试');
+    }
+  }
+
+  /**
    * 获取所有栈项
    */
   async getItems(area: StorageArea = 'sync'): Promise<StackItem[]> {
+    this.checkContext();
     return new Promise((resolve, reject) => {
       this.getStorage(area).get([STORAGE_KEYS.ITEMS], (result) => {
         if (chrome.runtime.lastError) {
@@ -35,6 +57,7 @@ class StorageManager {
    * 保存所有栈项
    */
   async setItems(items: StackItem[], area: StorageArea = 'sync'): Promise<void> {
+    this.checkContext();
     return new Promise((resolve, reject) => {
       this.getStorage(area).set({ [STORAGE_KEYS.ITEMS]: items }, () => {
         if (chrome.runtime.lastError) {
@@ -50,6 +73,7 @@ class StorageManager {
    * 获取用户设置
    */
   async getSettings(area: StorageArea = 'sync'): Promise<Settings> {
+    this.checkContext();
     return new Promise((resolve, reject) => {
       this.getStorage(area).get([STORAGE_KEYS.SETTINGS], (result) => {
         if (chrome.runtime.lastError) {
@@ -65,6 +89,7 @@ class StorageManager {
    * 更新用户设置
    */
   async updateSettings(settings: Partial<Settings>, area: StorageArea = 'sync'): Promise<Settings> {
+    this.checkContext();
     return new Promise((resolve, reject) => {
       this.getStorage(area).get([STORAGE_KEYS.SETTINGS], (result) => {
         if (chrome.runtime.lastError) {
