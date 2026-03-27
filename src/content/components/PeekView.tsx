@@ -61,12 +61,15 @@ export default function PeekView({ isOpen, onClose, onPush }: PeekViewProps) {
   // 倒序展示（栈顶在前）
   const reversedItems = [...items].reverse();
 
-  // 弹栈操作
+  // 弹栈操作：弹出栈顶，如果有 URL 则在新标签页打开
   const handlePop = async () => {
     if (items.length === 0) return;
     const popped = await pop();
     if (popped) {
       console.log('已弹栈:', popped.title);
+      if (popped.url) {
+        window.open(popped.url, '_blank');
+      }
     }
   };
 

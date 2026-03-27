@@ -7734,6 +7734,9 @@ var DropIt = (() => {
       const popped = await pop();
       if (popped) {
         console.log("\u5DF2\u5F39\u6808:", popped.title);
+        if (popped.url) {
+          window.open(popped.url, "_blank");
+        }
       }
     };
     const handleRemove = async (id) => {
