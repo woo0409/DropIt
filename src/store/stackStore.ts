@@ -23,38 +23,28 @@ interface StackState {
 interface StackActions {
   /** 从存储加载数据 */
   load: (area?: StorageArea) => Promise<void>;
-  /** Push 操作 */
-  push: (item: Omit<StackItem, 'id' | 'pushedAt'>, area?: StorageArea) => Promise<StackItem>;
-  /** Pop 操作 */
+  /** Push 操作 — 一键保存当前页面 */
+  push: (item: { title: string; url: string; source: string }, area?: StorageArea) => Promise<StackItem>;
+  /** Pop 操作 — 弹出栈顶并在新标签页打开 */
   pop: (area?: StorageArea) => Promise<StackItem | null>;
-  /** Peek 操作 */
-  peek: (area?: StorageArea) => Promise<StackItem | null>;
   /** 移除指定项 */
   remove: (id: string, area?: StorageArea) => Promise<boolean>;
-  /** 更新设置 */
-  updateSettings: (settings: Partial<Settings>, area?: StorageArea) => Promise<Settings>;
   /** 清空栈 */
   clear: (area?: StorageArea) => Promise<void>;
+  /** 更新设置 */
+  updateSettings: (settings: Partial<Settings>, area?: StorageArea) => Promise<void>;
   /** 重置错误 */
   clearError: () => void;
 }
 
-/**
- * 栈 Store 类型
- */
 type StackStore = StackState & StackActions;
 
-/**
- * 创建栈 Store
- */
 export const useStackStore = create<StackStore>((set) => ({
-  // 初始状态
   items: [],
   settings: DEFAULT_SETTINGS,
   isLoading: false,
   error: null,
 
-  // 从存储加载数据
   load: async (area = 'sync') => {
     set({ isLoading: true, error: null });
     try {
@@ -71,7 +61,6 @@ export const useStackStore = create<StackStore>((set) => ({
     }
   },
 
-  // Push 操作
   push: async (itemData, area = 'sync') => {
     set({ isLoading: true, error: null });
     try {
@@ -92,7 +81,6 @@ export const useStackStore = create<StackStore>((set) => ({
     }
   },
 
-  // Pop 操作
   pop: async (area = 'sync') => {
     set({ isLoading: true, error: null });
     try {
@@ -109,19 +97,6 @@ export const useStackStore = create<StackStore>((set) => ({
     }
   },
 
-  // Peek 操作
-  peek: async (area = 'sync') => {
-    try {
-      return await storage.peek(area);
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Peek 失败',
-      });
-      return null;
-    }
-  },
-
-  // 移除指定项
   remove: async (id, area = 'sync') => {
     set({ isLoading: true, error: null });
     try {
@@ -142,23 +117,6 @@ export const useStackStore = create<StackStore>((set) => ({
     }
   },
 
-  // 更新设置
-  updateSettings: async (newSettings, area = 'sync') => {
-    set({ isLoading: true, error: null });
-    try {
-      const settings = await storage.updateSettings(newSettings, area);
-      set({ settings, isLoading: false });
-      return settings;
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : '更新设置失败',
-        isLoading: false,
-      });
-      throw err;
-    }
-  },
-
-  // 清空栈
   clear: async (area = 'sync') => {
     set({ isLoading: true, error: null });
     try {
@@ -172,8 +130,20 @@ export const useStackStore = create<StackStore>((set) => ({
     }
   },
 
-  // 重置错误
   clearError: () => {
     set({ error: null });
+  },
+
+  updateSettings: async (newSettings, area = 'sync') => {
+    set({ isLoading: true, error: null });
+    try {
+      const updated = await storage.updateSettings(newSettings, area);
+      set({ settings: updated, isLoading: false });
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : '更新设置失败',
+        isLoading: false,
+      });
+    }
   },
 }));

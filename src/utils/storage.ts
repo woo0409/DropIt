@@ -116,6 +116,13 @@ class StorageManager {
    */
   async push(item: StackItem, area: StorageArea = 'sync'): Promise<StackItem[]> {
     const items = await this.getItems(area);
+
+    // 去重：检查 URL 是否已存在
+    const existingItem = items.find(i => i.url === item.url);
+    if (existingItem) {
+      throw new Error('该链接已存在');
+    }
+
     items.push(item); // 添加到数组末尾（栈顶）
     await this.setItems(items, area);
     return items;

@@ -7283,93 +7283,122 @@ var DropIt = (() => {
 
   // src/content/.temp-entry.tsx
   var temp_entry_exports = {};
-  var import_react5 = __toESM(require_react(), 1);
+  var import_react4 = __toESM(require_react(), 1);
   var import_client = __toESM(require_client(), 1);
 
   // src/content/App.tsx
-  var import_react4 = __toESM(require_react(), 1);
+  var import_react3 = __toESM(require_react(), 1);
 
   // src/content/components/FloatWidget.tsx
   var import_react = __toESM(require_react(), 1);
   var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
-  var DEFAULT_POSITION = {
-    right: 20,
-    bottom: 20
-  };
-  function FloatWidget({ count, isEmpty, isExpanded, onToggle }) {
-    const [position, setPosition] = (0, import_react.useState)(DEFAULT_POSITION);
+  var STORAGE_KEY = "dropit_widget_minimized";
+  function FloatWidget({ count, isEmpty, isExpanded, onToggle, onPositionChange }) {
+    const [position, setPosition] = (0, import_react.useState)({ right: 20, bottom: 20 });
     const [isDragging, setIsDragging] = (0, import_react.useState)(false);
+    const [isMinimized, setIsMinimized] = (0, import_react.useState)(false);
     const dragStartPos = (0, import_react.useRef)({ x: 0, y: 0 });
     const widgetStartPos = (0, import_react.useRef)({ x: 0, y: 0 });
-    const getStyle = () => {
-      const style = {
-        position: "fixed",
-        right: `${position.right}px`,
-        bottom: `${position.bottom}px`,
-        zIndex: 9999,
-        userSelect: "none",
-        cursor: isDragging ? "grabbing" : "grab"
-      };
-      if (isDragging) {
-        style.transition = "none";
-      } else {
-        style.transition = "all 0.2s ease";
-      }
-      return style;
+    const didDrag = (0, import_react.useRef)(false);
+    const clickTimer = (0, import_react.useRef)(null);
+    (0, import_react.useEffect)(() => {
+      chrome.storage.local.get([STORAGE_KEY], (result) => {
+        if (result[STORAGE_KEY] !== void 0) {
+          setIsMinimized(result[STORAGE_KEY]);
+        }
+      });
+    }, []);
+    const saveMinimizedState = (minimized) => {
+      chrome.storage.local.set({ [STORAGE_KEY]: minimized });
     };
+    const getStyle = () => ({
+      position: "fixed",
+      right: `${position.right}px`,
+      bottom: `${position.bottom}px`,
+      zIndex: 9999,
+      userSelect: "none",
+      cursor: isDragging ? "grabbing" : "grab",
+      transition: isDragging ? "none" : "all 0.2s ease"
+    });
+    const getWidgetStyle = () => ({
+      width: isMinimized ? "16px" : "auto",
+      height: isMinimized ? "16px" : "auto",
+      opacity: isMinimized ? 0.5 : 1
+    });
     const handleMouseDown = (e) => {
       if (e.button !== 0) return;
       e.preventDefault();
+      didDrag.current = false;
       setIsDragging(true);
       dragStartPos.current = { x: e.clientX, y: e.clientY };
       widgetStartPos.current = { x: position.right, y: position.bottom };
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     };
-    const handleMouseMove = (e) => {
+    const handleMouseMove = (0, import_react.useCallback)((e) => {
       const deltaX = dragStartPos.current.x - e.clientX;
-      const deltaY = e.clientY - dragStartPos.current.y;
+      const deltaY = dragStartPos.current.y - e.clientY;
+      if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+        didDrag.current = true;
+      }
       const newRight = Math.max(0, Math.min(window.innerWidth - 60, widgetStartPos.current.x + deltaX));
       const newBottom = Math.max(0, Math.min(window.innerHeight - 60, widgetStartPos.current.y + deltaY));
-      setPosition({ right: newRight, bottom: newBottom });
-    };
-    const handleMouseUp = () => {
+      const newPosition = { right: newRight, bottom: newBottom };
+      setPosition(newPosition);
+      onPositionChange(newPosition);
+    }, []);
+    const handleMouseUp = (0, import_react.useCallback)(() => {
       setIsDragging(false);
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
-    };
+    }, [handleMouseMove]);
     (0, import_react.useEffect)(() => {
       return () => {
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
+        if (clickTimer.current) {
+          clearTimeout(clickTimer.current);
+        }
       };
-    }, []);
+    }, [handleMouseMove, handleMouseUp]);
     const getColorClass = () => {
-      if (isEmpty) {
-        return "bg-gray-500 hover:bg-gray-600";
-      }
-      if (isExpanded) {
-        return "bg-teal-600 hover:bg-teal-700";
-      }
-      return "bg-emerald-500 hover:bg-emerald-600";
+      if (isEmpty) return "bg-gray-400 hover:bg-gray-500";
+      if (isExpanded) return "bg-purple-700 hover:bg-purple-800";
+      return "bg-violet-500 hover:bg-violet-600";
     };
     const handleClick = () => {
-      if (isDragging) return;
-      onToggle();
+      if (didDrag.current) return;
+      if (clickTimer.current) {
+        clearTimeout(clickTimer.current);
+        clickTimer.current = null;
+        const newMinimized = !isMinimized;
+        setIsMinimized(newMinimized);
+        saveMinimizedState(newMinimized);
+      } else {
+        clickTimer.current = setTimeout(() => {
+          clickTimer.current = null;
+          if (!isMinimized) {
+            onToggle();
+          }
+        }, 200);
+      }
+    };
+    const handleMouseEnter = () => {
+      if (isMinimized) {
+        setIsMinimized(false);
+        saveMinimizedState(false);
+      }
     };
     return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       "div",
       {
         className: `dropit-float-widget ${getColorClass()} text-white font-semibold rounded-full shadow-lg flex items-center justify-center dropit-fade-in`,
-        style: getStyle(),
+        style: { ...getStyle(), ...getWidgetStyle() },
         onMouseDown: handleMouseDown,
         onClick: handleClick,
-        title: isEmpty ? "\u6808\u4E3A\u7A7A" : `\u6808\u6DF1\u5EA6: ${count}`,
-        children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "px-3 py-2 text-sm min-w-[32px] text-center", children: [
-          "[",
-          count,
-          "]"
-        ] })
+        onMouseEnter: handleMouseEnter,
+        title: isMinimized ? "\u53CC\u51FB\u5C55\u5F00" : isEmpty ? "\u7A0D\u540E\u9605\u8BFB" : `${count} \u7BC7\u7A0D\u540E\u9605\u8BFB\uFF0C\u53CC\u51FB\u6700\u5C0F\u5316`,
+        children: !isMinimized && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "px-3 py-2 text-sm min-w-[32px] text-center", children: isEmpty ? "\u{1F4D6}" : `[${count}]` })
       }
     );
   }
@@ -7425,14 +7454,7 @@ var DropIt = (() => {
   };
   var DEFAULT_SETTINGS = {
     maxDepth: 20,
-    reminderThresholds: [
-      1 * 60 * 60 * 1e3,
-      // 1 小时
-      4 * 60 * 60 * 1e3,
-      // 4 小时
-      24 * 60 * 60 * 1e3
-      // 1 天
-    ]
+    closeAfterPush: true
   };
 
   // src/utils/storage.ts
@@ -7531,6 +7553,10 @@ var DropIt = (() => {
      */
     async push(item, area = "sync") {
       const items = await this.getItems(area);
+      const existingItem = items.find((i) => i.url === item.url);
+      if (existingItem) {
+        throw new Error("\u8BE5\u94FE\u63A5\u5DF2\u5B58\u5728");
+      }
       items.push(item);
       await this.setItems(items, area);
       return items;
@@ -7590,12 +7616,10 @@ var DropIt = (() => {
 
   // src/store/stackStore.ts
   var useStackStore = create((set) => ({
-    // 初始状态
     items: [],
     settings: DEFAULT_SETTINGS,
     isLoading: false,
     error: null,
-    // 从存储加载数据
     load: async (area = "sync") => {
       set({ isLoading: true, error: null });
       try {
@@ -7611,7 +7635,6 @@ var DropIt = (() => {
         });
       }
     },
-    // Push 操作
     push: async (itemData, area = "sync") => {
       set({ isLoading: true, error: null });
       try {
@@ -7631,7 +7654,6 @@ var DropIt = (() => {
         throw err;
       }
     },
-    // Pop 操作
     pop: async (area = "sync") => {
       set({ isLoading: true, error: null });
       try {
@@ -7647,18 +7669,6 @@ var DropIt = (() => {
         return null;
       }
     },
-    // Peek 操作
-    peek: async (area = "sync") => {
-      try {
-        return await storage.peek(area);
-      } catch (err) {
-        set({
-          error: err instanceof Error ? err.message : "Peek \u5931\u8D25"
-        });
-        return null;
-      }
-    },
-    // 移除指定项
     remove: async (id, area = "sync") => {
       set({ isLoading: true, error: null });
       try {
@@ -7678,22 +7688,6 @@ var DropIt = (() => {
         return false;
       }
     },
-    // 更新设置
-    updateSettings: async (newSettings, area = "sync") => {
-      set({ isLoading: true, error: null });
-      try {
-        const settings = await storage.updateSettings(newSettings, area);
-        set({ settings, isLoading: false });
-        return settings;
-      } catch (err) {
-        set({
-          error: err instanceof Error ? err.message : "\u66F4\u65B0\u8BBE\u7F6E\u5931\u8D25",
-          isLoading: false
-        });
-        throw err;
-      }
-    },
-    // 清空栈
     clear: async (area = "sync") => {
       set({ isLoading: true, error: null });
       try {
@@ -7706,32 +7700,25 @@ var DropIt = (() => {
         });
       }
     },
-    // 重置错误
     clearError: () => {
       set({ error: null });
+    },
+    updateSettings: async (newSettings, area = "sync") => {
+      set({ isLoading: true, error: null });
+      try {
+        const updated = await storage.updateSettings(newSettings, area);
+        set({ settings: updated, isLoading: false });
+      } catch (err) {
+        set({
+          error: err instanceof Error ? err.message : "\u66F4\u65B0\u8BBE\u7F6E\u5931\u8D25",
+          isLoading: false
+        });
+      }
     }
   }));
 
   // src/content/components/PeekView.tsx
   var import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
-  var TYPE_ICONS = {
-    task: "\u{1F4CC}",
-    read: "\u{1F4D6}"
-  };
-  var TYPE_LABELS = {
-    task: "\u4EFB\u52A1",
-    read: "\u9605\u8BFB"
-  };
-  var PRIORITY_COLORS = {
-    high: { bg: "bg-red-100", text: "text-red-700", emoji: "\u{1F534}" },
-    medium: { bg: "bg-amber-100", text: "text-amber-700", emoji: "\u{1F7E1}" },
-    low: { bg: "bg-green-100", text: "text-green-700", emoji: "\u{1F7E2}" }
-  };
-  var PRIORITY_LABELS = {
-    high: "\u9AD8",
-    medium: "\u4E2D",
-    low: "\u4F4E"
-  };
   function formatDuration(timestamp) {
     const now = Date.now();
     const diff = now - timestamp;
@@ -7739,27 +7726,44 @@ var DropIt = (() => {
     const hours = Math.floor(diff / 36e5);
     const days = Math.floor(diff / 864e5);
     if (minutes < 1) return "\u521A\u521A";
-    if (minutes < 60) return `${minutes} \u5206\u949F\u524D`;
-    if (hours < 24) return `${hours} \u5C0F\u65F6\u524D`;
-    return `${days} \u5929\u524D`;
+    if (minutes < 60) return `${minutes}\u5206\u949F\u524D`;
+    if (hours < 24) return `${hours}\u5C0F\u65F6\u524D`;
+    return `${days}\u5929\u524D`;
   }
-  function PeekView({ isOpen, onClose, onPush }) {
+  function PeekView({ isOpen, onClose, onQuickPush, widgetPosition }) {
     const items = useStackStore((state) => state.items);
     const pop = useStackStore((state) => state.pop);
     const remove = useStackStore((state) => state.remove);
     const reversedItems = [...items].reverse();
+    const POPUP_MAX_HEIGHT = window.innerHeight * 0.6;
+    const WIDGET_SIZE = 50;
+    const SPACING = 12;
+    const getPopupStyle = () => {
+      const right = widgetPosition.right;
+      const bottom = widgetPosition.bottom;
+      const bottomIfAbove = bottom + WIDGET_SIZE + SPACING;
+      const topIfAbove = window.innerHeight - bottomIfAbove - POPUP_MAX_HEIGHT;
+      if (topIfAbove < 10) {
+        return {
+          right: `${right}px`,
+          bottom: `${window.innerHeight - bottom + SPACING}px`
+        };
+      }
+      return {
+        right: `${right}px`,
+        bottom: `${bottomIfAbove}px`
+      };
+    };
     const handlePop = async () => {
       if (items.length === 0) return;
       const popped = await pop();
       if (popped) {
-        console.log("\u5DF2\u5F39\u6808:", popped.title);
-        if (popped.url) {
-          window.open(popped.url, "_blank");
-        }
+        window.open(popped.url, "_blank");
       }
     };
-    const handleRemove = async (id) => {
-      await remove(id);
+    const handleOpen = async (item) => {
+      await remove(item.id);
+      window.open(item.url, "_blank");
     };
     if (!isOpen) return null;
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
@@ -7772,15 +7776,16 @@ var DropIt = (() => {
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
             "div",
             {
-              className: "absolute bottom-20 right-4 w-80 max-h-[60vh] bg-white rounded-xl shadow-2xl overflow-hidden dropit-slide-in flex flex-col",
+              className: "absolute w-80 max-h-[60vh] bg-white rounded-xl shadow-2xl overflow-hidden dropit-slide-in flex flex-col",
+              style: getPopupStyle(),
               onClick: (e) => e.stopPropagation(),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3 flex items-center justify-between", children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h2", { className: "text-white font-semibold text-lg", children: "DropIt \u6808" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "bg-gradient-to-r from-violet-500 to-purple-600 px-4 py-3 flex items-center justify-between", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h2", { className: "text-white font-semibold text-lg", children: "\u{1F4D6} \u7A0D\u540E\u9605\u8BFB" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "flex items-center gap-2", children: [
                     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "text-white/80 text-sm", children: [
                       items.length,
-                      " \u9879"
+                      " \u7BC7"
                     ] }),
                     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
                       "button",
@@ -7795,13 +7800,33 @@ var DropIt = (() => {
                 ] }),
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "flex-1 overflow-y-auto dropit-scrollbar p-2", children: items.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "flex flex-col items-center justify-center py-12 text-gray-400", children: [
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "text-4xl mb-3", children: "\u{1F4ED}" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "text-sm", children: "\u6808\u662F\u7A7A\u7684" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "text-xs mt-1", children: "\u70B9\u51FB\u4E0B\u65B9\u6309\u94AE\u6DFB\u52A0\u7B2C\u4E00\u9879" })
-                ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "space-y-2", children: reversedItems.map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-                  StackItemCard,
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "text-sm", children: "\u5217\u8868\u662F\u7A7A\u7684" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "text-xs mt-1", children: "\u70B9\u51FB\u4E0B\u65B9\u6309\u94AE\u4FDD\u5B58\u5F53\u524D\u9875\u9762" })
+                ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "space-y-1.5", children: reversedItems.map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+                  "div",
                   {
-                    item,
-                    onRemove: () => handleRemove(item.id)
+                    className: "group bg-white border border-gray-100 rounded-lg p-3 hover:bg-gray-50 hover:shadow-sm transition-all cursor-pointer relative",
+                    onClick: () => handleOpen(item),
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                        "button",
+                        {
+                          onClick: (e) => {
+                            e.stopPropagation();
+                            remove(item.id);
+                          },
+                          className: "absolute top-2 right-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1",
+                          title: "\u5220\u9664",
+                          children: "\u2715"
+                        }
+                      ),
+                      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { className: "font-medium text-gray-800 text-sm pr-6 leading-snug line-clamp-2", title: item.title, children: item.title }),
+                      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "flex items-center gap-2 mt-1.5", children: [
+                        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "text-xs text-gray-400", children: item.source }),
+                        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "text-xs text-gray-300", children: "\xB7" }),
+                        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "text-xs text-gray-400", children: formatDuration(item.pushedAt) })
+                      ] })
+                    ]
                   },
                   item.id
                 )) }) }),
@@ -7812,260 +7837,19 @@ var DropIt = (() => {
                       onClick: handlePop,
                       disabled: items.length === 0,
                       className: "flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm",
-                      title: "\u5F39\u51FA\u6808\u9876\u9879\u76EE",
-                      children: "\u5F39\u6808"
+                      title: "\u6253\u5F00\u6700\u8FD1\u4FDD\u5B58\u7684\u9875\u9762",
+                      children: "\u{1F4E4} \u8BFB\u53D6"
                     }
                   ),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
                     "button",
                     {
-                      onClick: onPush,
-                      className: "flex-1 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors text-sm",
-                      title: "\u6DFB\u52A0\u65B0\u9879\u76EE\u5230\u6808\u9876",
-                      children: "+ \u538B\u6808"
+                      onClick: onQuickPush,
+                      className: "flex-1 px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg font-medium transition-colors text-sm",
+                      title: "\u4FDD\u5B58\u5F53\u524D\u9875\u9762",
+                      children: "\u{1F4E5} \u4FDD\u5B58"
                     }
                   )
-                ] })
-              ]
-            }
-          )
-        ]
-      }
-    );
-  }
-  function StackItemCard({ item, onRemove }) {
-    const priorityStyle = PRIORITY_COLORS[item.priority];
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "group bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-all relative", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-        "button",
-        {
-          onClick: onRemove,
-          className: "absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1",
-          title: "\u5220\u9664",
-          children: "\u2715"
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "flex items-start gap-2 pr-6", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "text-xl", role: "img", "aria-label": TYPE_LABELS[item.type], children: TYPE_ICONS[item.type] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "flex-1 min-w-0", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { className: "font-medium text-gray-800 text-sm truncate", title: item.title, children: item.title }),
-          item.url && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-            "a",
-            {
-              href: item.url,
-              target: "_blank",
-              rel: "noopener noreferrer",
-              className: "text-xs text-blue-500 hover:underline truncate block mt-1",
-              title: item.url,
-              onClick: (e) => e.stopPropagation(),
-              children: item.url
-            }
-          ),
-          item.note && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "text-xs text-gray-500 mt-1 line-clamp-2", title: item.note, children: item.note })
-        ] })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "flex items-center justify-between mt-2", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "flex items-center gap-2", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-            "span",
-            {
-              className: `inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${priorityStyle.bg} ${priorityStyle.text}`,
-              children: [
-                priorityStyle.emoji,
-                " ",
-                PRIORITY_LABELS[item.priority]
-              ]
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "text-xs text-gray-400", children: formatDuration(item.pushedAt) })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "text-xs text-gray-400", children: item.source })
-      ] })
-    ] });
-  }
-
-  // src/content/components/PushForm.tsx
-  var import_react3 = __toESM(require_react(), 1);
-  var import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
-  function PushForm({ isOpen, onClose, onSuccess }) {
-    const push = useStackStore((state) => state.push);
-    const [formData, setFormData] = (0, import_react3.useState)({
-      title: "",
-      url: "",
-      note: "",
-      type: "task",
-      priority: "medium"
-    });
-    const [isSubmitting, setIsSubmitting] = (0, import_react3.useState)(false);
-    (0, import_react3.useEffect)(() => {
-      if (isOpen) {
-        setFormData({
-          title: document.title,
-          url: window.location.href,
-          note: "",
-          type: "task",
-          priority: "medium"
-        });
-      }
-    }, [isOpen]);
-    if (!isOpen) return null;
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      if (!formData.title.trim()) {
-        alert("\u8BF7\u8F93\u5165\u6807\u9898");
-        return;
-      }
-      setIsSubmitting(true);
-      try {
-        await push({
-          title: formData.title.trim(),
-          url: formData.url.trim() || void 0,
-          note: formData.note.trim() || void 0,
-          type: formData.type,
-          priority: formData.priority,
-          source: new URL(window.location.href).hostname
-        });
-        onSuccess();
-      } catch (error) {
-        console.error("\u538B\u6808\u5931\u8D25:", error);
-        const msg = error instanceof Error && error.message.includes("\u6269\u5C55\u5DF2\u66F4\u65B0") ? "\u6269\u5C55\u5DF2\u66F4\u65B0\uFF0C\u8BF7\u5237\u65B0\u5F53\u524D\u9875\u9762\u540E\u91CD\u8BD5" : "\u538B\u6808\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5";
-        alert(msg);
-      } finally {
-        setIsSubmitting(false);
-      }
-    };
-    const handleTypeChange = (type) => {
-      setFormData({ ...formData, type });
-    };
-    const handlePriorityChange = (priority) => {
-      setFormData({ ...formData, priority });
-    };
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-      "div",
-      {
-        className: "fixed inset-0 z-[9999] dropit-fade-in",
-        onClick: onClose,
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "absolute inset-0 bg-black/30" }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-            "div",
-            {
-              className: "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 bg-white rounded-xl shadow-2xl overflow-hidden dropit-slide-in",
-              onClick: (e) => e.stopPropagation(),
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-3 flex items-center justify-between", children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h2", { className: "text-white font-semibold text-lg", children: "\u538B\u6808" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-                    "button",
-                    {
-                      onClick: onClose,
-                      className: "text-white/80 hover:text-white transition-colors p-1",
-                      title: "\u5173\u95ED",
-                      children: "\u2715"
-                    }
-                  )
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("form", { onSubmit: handleSubmit, className: "p-4 space-y-4", children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("label", { className: "block text-sm font-medium text-gray-700 mb-1", children: [
-                      "\u6807\u9898 ",
-                      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "text-red-500", children: "*" })
-                    ] }),
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-                      "input",
-                      {
-                        type: "text",
-                        value: formData.title,
-                        onChange: (e) => setFormData({ ...formData, title: e.target.value }),
-                        placeholder: "\u8F93\u5165\u6807\u9898...",
-                        className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm",
-                        autoFocus: true
-                      }
-                    )
-                  ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("label", { className: "block text-sm font-medium text-gray-700 mb-1", children: "URL\uFF08\u53EF\u9009\uFF09" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-                      "input",
-                      {
-                        type: "url",
-                        value: formData.url,
-                        onChange: (e) => setFormData({ ...formData, url: e.target.value }),
-                        placeholder: "https://...",
-                        className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-                      }
-                    )
-                  ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("label", { className: "block text-sm font-medium text-gray-700 mb-1", children: "\u5907\u6CE8\uFF08\u53EF\u9009\uFF09" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-                      "textarea",
-                      {
-                        value: formData.note,
-                        onChange: (e) => setFormData({ ...formData, note: e.target.value }),
-                        placeholder: "\u6DFB\u52A0\u5907\u6CE8...",
-                        rows: 2,
-                        className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm resize-none"
-                      }
-                    )
-                  ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "\u7C7B\u578B" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "flex gap-2", children: [
-                      { value: "task", label: "\u{1F4CC} \u4EFB\u52A1", desc: "\u5F85\u529E\u4E8B\u9879" },
-                      { value: "read", label: "\u{1F4D6} \u9605\u8BFB", desc: "\u7A0D\u540E\u9605\u8BFB" }
-                    ].map(({ value, label, desc }) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-                      "button",
-                      {
-                        type: "button",
-                        onClick: () => handleTypeChange(value),
-                        className: `flex-1 px-3 py-2 rounded-lg border-2 transition-all text-sm ${formData.type === value ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 hover:border-gray-300 text-gray-600"}`,
-                        children: [
-                          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "font-medium", children: label }),
-                          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "text-xs opacity-70", children: desc })
-                        ]
-                      },
-                      value
-                    )) })
-                  ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "\u4F18\u5148\u7EA7" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "flex gap-2", children: [
-                      { value: "high", label: "\u{1F534} \u9AD8", color: "bg-red-50 border-red-200 hover:border-red-300 text-red-700" },
-                      { value: "medium", label: "\u{1F7E1} \u4E2D", color: "bg-amber-50 border-amber-200 hover:border-amber-300 text-amber-700" },
-                      { value: "low", label: "\u{1F7E2} \u4F4E", color: "bg-green-50 border-green-200 hover:border-green-300 text-green-700" }
-                    ].map(({ value, label, color }) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-                      "button",
-                      {
-                        type: "button",
-                        onClick: () => handlePriorityChange(value),
-                        className: `flex-1 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium ${formData.priority === value ? color.replace("hover:border-", "border-").replace("50", "500") : "border-gray-200 hover:border-gray-300 text-gray-600 bg-gray-50"}`,
-                        children: label
-                      },
-                      value
-                    )) })
-                  ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "flex gap-2 pt-2", children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-                      "button",
-                      {
-                        type: "button",
-                        onClick: onClose,
-                        className: "flex-1 px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors text-sm",
-                        disabled: isSubmitting,
-                        children: "\u53D6\u6D88"
-                      }
-                    ),
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-                      "button",
-                      {
-                        type: "submit",
-                        disabled: isSubmitting,
-                        className: "flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm",
-                        children: isSubmitting ? "\u6DFB\u52A0\u4E2D..." : "\u786E\u8BA4"
-                      }
-                    )
-                  ] })
                 ] })
               ]
             }
@@ -8076,16 +7860,18 @@ var DropIt = (() => {
   }
 
   // src/content/App.tsx
-  var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
+  var import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
   function ContentApp() {
-    const [isExpanded, setIsExpanded] = (0, import_react4.useState)(false);
-    const [showPushForm, setShowPushForm] = (0, import_react4.useState)(false);
+    const [isExpanded, setIsExpanded] = (0, import_react3.useState)(false);
+    const [widgetPosition, setWidgetPosition] = (0, import_react3.useState)({ right: 20, bottom: 20 });
     const items = useStackStore((state) => state.items);
     const load = useStackStore((state) => state.load);
-    (0, import_react4.useEffect)(() => {
+    const push = useStackStore((state) => state.push);
+    const pop = useStackStore((state) => state.pop);
+    (0, import_react3.useEffect)(() => {
       load();
-    }, [load]);
-    (0, import_react4.useEffect)(() => {
+    }, []);
+    (0, import_react3.useEffect)(() => {
       const handleStorageChange = (changes) => {
         if (changes.dropit_items || changes.dropit_settings) {
           load();
@@ -8095,46 +7881,87 @@ var DropIt = (() => {
       return () => {
         chrome.storage.onChanged.removeListener(handleStorageChange);
       };
-    }, [load]);
-    const stackDepth = items.length;
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+    }, []);
+    (0, import_react3.useEffect)(() => {
+      const handleMessage = (message) => {
+        switch (message.type) {
+          case "PUSH_PAGE":
+            handleQuickPush();
+            break;
+          case "POP_PAGE":
+            handlePop();
+            break;
+          case "TOGGLE_PEEK":
+            setIsExpanded((prev) => !prev);
+            break;
+        }
+      };
+      chrome.runtime.onMessage.addListener(handleMessage);
+      return () => {
+        chrome.runtime.onMessage.removeListener(handleMessage);
+      };
+    }, []);
+    const handleQuickPush = async () => {
+      try {
+        const currentItems = useStackStore.getState().items;
+        const currentSettings = useStackStore.getState().settings;
+        if (currentItems.length >= currentSettings.maxDepth) {
+          alert(`\u5217\u8868\u5DF2\u6EE1\uFF08${currentSettings.maxDepth}/${currentSettings.maxDepth}\uFF09\uFF0C\u8BF7\u5148\u6E05\u7406`);
+          return;
+        }
+        await push({
+          title: document.title,
+          url: window.location.href,
+          source: new URL(window.location.href).hostname
+        });
+        if (currentSettings.closeAfterPush) {
+          chrome.runtime.sendMessage({ type: "CLOSE_TAB" });
+        }
+      } catch (error) {
+        console.error("\u4FDD\u5B58\u5931\u8D25:", error);
+        const msg = error instanceof Error && error.message.includes("\u6269\u5C55\u5DF2\u66F4\u65B0") ? "\u6269\u5C55\u5DF2\u66F4\u65B0\uFF0C\u8BF7\u5237\u65B0\u5F53\u524D\u9875\u9762\u540E\u91CD\u8BD5" : error instanceof Error && error.message.includes("\u8BE5\u94FE\u63A5\u5DF2\u5B58\u5728") ? "\u8BE5\u94FE\u63A5\u5DF2\u5B58\u5728\u4E8E\u7A0D\u540E\u9605\u8BFB\u5217\u8868\u4E2D" : "\u4FDD\u5B58\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5";
+        alert(msg);
+      }
+    };
+    const handlePop = async () => {
+      const currentItems = useStackStore.getState().items;
+      if (currentItems.length === 0) {
+        alert("\u5217\u8868\u662F\u7A7A\u7684\uFF0C\u6CA1\u6709\u53EF\u8BFB\u53D6\u7684\u9875\u9762");
+        return;
+      }
+      const popped = await pop();
+      if (popped) {
+        window.open(popped.url, "_blank");
+      }
+    };
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
         FloatWidget,
         {
-          count: stackDepth,
-          isEmpty: stackDepth === 0,
+          count: items.length,
+          isEmpty: items.length === 0,
           isExpanded,
-          onToggle: () => setIsExpanded(!isExpanded)
+          onToggle: () => setIsExpanded(!isExpanded),
+          onPositionChange: setWidgetPosition
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
         PeekView,
         {
           isOpen: isExpanded,
           onClose: () => setIsExpanded(false),
-          onPush: () => {
-            setShowPushForm(true);
-            setIsExpanded(false);
-          }
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-        PushForm,
-        {
-          isOpen: showPushForm,
-          onClose: () => setShowPushForm(false),
-          onSuccess: () => {
-            setShowPushForm(false);
-            setIsExpanded(true);
-          }
+          onQuickPush: () => {
+            handleQuickPush();
+          },
+          widgetPosition
         }
       )
     ] });
   }
 
   // src/content/.temp-entry.tsx
-  var import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
-  var contentCss = "/**\n * Content Script \u4E13\u7528\u6837\u5F0F\n * \u7528\u4E8E Shadow DOM \u5185\u90E8\uFF0C\u4F7F\u7528 Tailwind CSS\n */\n\n*, ::before, ::after {\n  --tw-border-spacing-x: 0;\n  --tw-border-spacing-y: 0;\n  --tw-translate-x: 0;\n  --tw-translate-y: 0;\n  --tw-rotate: 0;\n  --tw-skew-x: 0;\n  --tw-skew-y: 0;\n  --tw-scale-x: 1;\n  --tw-scale-y: 1;\n  --tw-pan-x:  ;\n  --tw-pan-y:  ;\n  --tw-pinch-zoom:  ;\n  --tw-scroll-snap-strictness: proximity;\n  --tw-gradient-from-position:  ;\n  --tw-gradient-via-position:  ;\n  --tw-gradient-to-position:  ;\n  --tw-ordinal:  ;\n  --tw-slashed-zero:  ;\n  --tw-numeric-figure:  ;\n  --tw-numeric-spacing:  ;\n  --tw-numeric-fraction:  ;\n  --tw-ring-inset:  ;\n  --tw-ring-offset-width: 0px;\n  --tw-ring-offset-color: #fff;\n  --tw-ring-color: rgb(59 130 246 / 0.5);\n  --tw-ring-offset-shadow: 0 0 #0000;\n  --tw-ring-shadow: 0 0 #0000;\n  --tw-shadow: 0 0 #0000;\n  --tw-shadow-colored: 0 0 #0000;\n  --tw-blur:  ;\n  --tw-brightness:  ;\n  --tw-contrast:  ;\n  --tw-grayscale:  ;\n  --tw-hue-rotate:  ;\n  --tw-invert:  ;\n  --tw-saturate:  ;\n  --tw-sepia:  ;\n  --tw-drop-shadow:  ;\n  --tw-backdrop-blur:  ;\n  --tw-backdrop-brightness:  ;\n  --tw-backdrop-contrast:  ;\n  --tw-backdrop-grayscale:  ;\n  --tw-backdrop-hue-rotate:  ;\n  --tw-backdrop-invert:  ;\n  --tw-backdrop-opacity:  ;\n  --tw-backdrop-saturate:  ;\n  --tw-backdrop-sepia:  ;\n  --tw-contain-size:  ;\n  --tw-contain-layout:  ;\n  --tw-contain-paint:  ;\n  --tw-contain-style:  ;\n}\n\n::backdrop {\n  --tw-border-spacing-x: 0;\n  --tw-border-spacing-y: 0;\n  --tw-translate-x: 0;\n  --tw-translate-y: 0;\n  --tw-rotate: 0;\n  --tw-skew-x: 0;\n  --tw-skew-y: 0;\n  --tw-scale-x: 1;\n  --tw-scale-y: 1;\n  --tw-pan-x:  ;\n  --tw-pan-y:  ;\n  --tw-pinch-zoom:  ;\n  --tw-scroll-snap-strictness: proximity;\n  --tw-gradient-from-position:  ;\n  --tw-gradient-via-position:  ;\n  --tw-gradient-to-position:  ;\n  --tw-ordinal:  ;\n  --tw-slashed-zero:  ;\n  --tw-numeric-figure:  ;\n  --tw-numeric-spacing:  ;\n  --tw-numeric-fraction:  ;\n  --tw-ring-inset:  ;\n  --tw-ring-offset-width: 0px;\n  --tw-ring-offset-color: #fff;\n  --tw-ring-color: rgb(59 130 246 / 0.5);\n  --tw-ring-offset-shadow: 0 0 #0000;\n  --tw-ring-shadow: 0 0 #0000;\n  --tw-shadow: 0 0 #0000;\n  --tw-shadow-colored: 0 0 #0000;\n  --tw-blur:  ;\n  --tw-brightness:  ;\n  --tw-contrast:  ;\n  --tw-grayscale:  ;\n  --tw-hue-rotate:  ;\n  --tw-invert:  ;\n  --tw-saturate:  ;\n  --tw-sepia:  ;\n  --tw-drop-shadow:  ;\n  --tw-backdrop-blur:  ;\n  --tw-backdrop-brightness:  ;\n  --tw-backdrop-contrast:  ;\n  --tw-backdrop-grayscale:  ;\n  --tw-backdrop-hue-rotate:  ;\n  --tw-backdrop-invert:  ;\n  --tw-backdrop-opacity:  ;\n  --tw-backdrop-saturate:  ;\n  --tw-backdrop-sepia:  ;\n  --tw-contain-size:  ;\n  --tw-contain-layout:  ;\n  --tw-contain-paint:  ;\n  --tw-contain-style:  ;\n}\n\n/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com\n */\n\n/*\n1. Prevent padding and border from affecting element width. (https://github.com/mozdevs/cssremedy/issues/4)\n2. Allow adding a border to an element by just adding a border-width. (https://github.com/tailwindcss/tailwindcss/pull/116)\n*/\n\n*,\n::before,\n::after {\n  box-sizing: border-box; /* 1 */\n  border-width: 0; /* 2 */\n  border-style: solid; /* 2 */\n  border-color: #e5e7eb; /* 2 */\n}\n\n::before,\n::after {\n  --tw-content: '';\n}\n\n/*\n1. Use a consistent sensible line-height in all browsers.\n2. Prevent adjustments of font size after orientation changes in iOS.\n3. Use a more readable tab size.\n4. Use the user's configured `sans` font-family by default.\n5. Use the user's configured `sans` font-feature-settings by default.\n6. Use the user's configured `sans` font-variation-settings by default.\n7. Disable tap highlights on iOS\n*/\n\nhtml,\n:host {\n  line-height: 1.5; /* 1 */\n  -webkit-text-size-adjust: 100%; /* 2 */\n  -moz-tab-size: 4; /* 3 */\n  -o-tab-size: 4;\n     tab-size: 4; /* 3 */\n  font-family: ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"; /* 4 */\n  font-feature-settings: normal; /* 5 */\n  font-variation-settings: normal; /* 6 */\n  -webkit-tap-highlight-color: transparent; /* 7 */\n}\n\n/*\n1. Remove the margin in all browsers.\n2. Inherit line-height from `html` so users can set them as a class directly on the `html` element.\n*/\n\nbody {\n  margin: 0; /* 1 */\n  line-height: inherit; /* 2 */\n}\n\n/*\n1. Add the correct height in Firefox.\n2. Correct the inheritance of border color in Firefox. (https://bugzilla.mozilla.org/show_bug.cgi?id=190655)\n3. Ensure horizontal rules are visible by default.\n*/\n\nhr {\n  height: 0; /* 1 */\n  color: inherit; /* 2 */\n  border-top-width: 1px; /* 3 */\n}\n\n/*\nAdd the correct text decoration in Chrome, Edge, and Safari.\n*/\n\nabbr:where([title]) {\n  -webkit-text-decoration: underline dotted;\n          text-decoration: underline dotted;\n}\n\n/*\nRemove the default font size and weight for headings.\n*/\n\nh1,\nh2,\nh3,\nh4,\nh5,\nh6 {\n  font-size: inherit;\n  font-weight: inherit;\n}\n\n/*\nReset links to optimize for opt-in styling instead of opt-out.\n*/\n\na {\n  color: inherit;\n  text-decoration: inherit;\n}\n\n/*\nAdd the correct font weight in Edge and Safari.\n*/\n\nb,\nstrong {\n  font-weight: bolder;\n}\n\n/*\n1. Use the user's configured `mono` font-family by default.\n2. Use the user's configured `mono` font-feature-settings by default.\n3. Use the user's configured `mono` font-variation-settings by default.\n4. Correct the odd `em` font sizing in all browsers.\n*/\n\ncode,\nkbd,\nsamp,\npre {\n  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace; /* 1 */\n  font-feature-settings: normal; /* 2 */\n  font-variation-settings: normal; /* 3 */\n  font-size: 1em; /* 4 */\n}\n\n/*\nAdd the correct font size in all browsers.\n*/\n\nsmall {\n  font-size: 80%;\n}\n\n/*\nPrevent `sub` and `sup` elements from affecting the line height in all browsers.\n*/\n\nsub,\nsup {\n  font-size: 75%;\n  line-height: 0;\n  position: relative;\n  vertical-align: baseline;\n}\n\nsub {\n  bottom: -0.25em;\n}\n\nsup {\n  top: -0.5em;\n}\n\n/*\n1. Remove text indentation from table contents in Chrome and Safari. (https://bugs.chromium.org/p/chromium/issues/detail?id=999088, https://bugs.webkit.org/show_bug.cgi?id=201297)\n2. Correct table border color inheritance in all Chrome and Safari. (https://bugs.chromium.org/p/chromium/issues/detail?id=935729, https://bugs.webkit.org/show_bug.cgi?id=195016)\n3. Remove gaps between table borders by default.\n*/\n\ntable {\n  text-indent: 0; /* 1 */\n  border-color: inherit; /* 2 */\n  border-collapse: collapse; /* 3 */\n}\n\n/*\n1. Change the font styles in all browsers.\n2. Remove the margin in Firefox and Safari.\n3. Remove default padding in all browsers.\n*/\n\nbutton,\ninput,\noptgroup,\nselect,\ntextarea {\n  font-family: inherit; /* 1 */\n  font-feature-settings: inherit; /* 1 */\n  font-variation-settings: inherit; /* 1 */\n  font-size: 100%; /* 1 */\n  font-weight: inherit; /* 1 */\n  line-height: inherit; /* 1 */\n  letter-spacing: inherit; /* 1 */\n  color: inherit; /* 1 */\n  margin: 0; /* 2 */\n  padding: 0; /* 3 */\n}\n\n/*\nRemove the inheritance of text transform in Edge and Firefox.\n*/\n\nbutton,\nselect {\n  text-transform: none;\n}\n\n/*\n1. Correct the inability to style clickable types in iOS and Safari.\n2. Remove default button styles.\n*/\n\nbutton,\ninput:where([type='button']),\ninput:where([type='reset']),\ninput:where([type='submit']) {\n  -webkit-appearance: button; /* 1 */\n  background-color: transparent; /* 2 */\n  background-image: none; /* 2 */\n}\n\n/*\nUse the modern Firefox focus style for all focusable elements.\n*/\n\n:-moz-focusring {\n  outline: auto;\n}\n\n/*\nRemove the additional `:invalid` styles in Firefox. (https://github.com/mozilla/gecko-dev/blob/2f9eacd9d3d995c937b4251a5557d95d494c9be1/layout/style/res/forms.css#L728-L737)\n*/\n\n:-moz-ui-invalid {\n  box-shadow: none;\n}\n\n/*\nAdd the correct vertical alignment in Chrome and Firefox.\n*/\n\nprogress {\n  vertical-align: baseline;\n}\n\n/*\nCorrect the cursor style of increment and decrement buttons in Safari.\n*/\n\n::-webkit-inner-spin-button,\n::-webkit-outer-spin-button {\n  height: auto;\n}\n\n/*\n1. Correct the odd appearance in Chrome and Safari.\n2. Correct the outline style in Safari.\n*/\n\n[type='search'] {\n  -webkit-appearance: textfield; /* 1 */\n  outline-offset: -2px; /* 2 */\n}\n\n/*\nRemove the inner padding in Chrome and Safari on macOS.\n*/\n\n::-webkit-search-decoration {\n  -webkit-appearance: none;\n}\n\n/*\n1. Correct the inability to style clickable types in iOS and Safari.\n2. Change font properties to `inherit` in Safari.\n*/\n\n::-webkit-file-upload-button {\n  -webkit-appearance: button; /* 1 */\n  font: inherit; /* 2 */\n}\n\n/*\nAdd the correct display in Chrome and Safari.\n*/\n\nsummary {\n  display: list-item;\n}\n\n/*\nRemoves the default spacing and border for appropriate elements.\n*/\n\nblockquote,\ndl,\ndd,\nh1,\nh2,\nh3,\nh4,\nh5,\nh6,\nhr,\nfigure,\np,\npre {\n  margin: 0;\n}\n\nfieldset {\n  margin: 0;\n  padding: 0;\n}\n\nlegend {\n  padding: 0;\n}\n\nol,\nul,\nmenu {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\n/*\nReset default styling for dialogs.\n*/\n\ndialog {\n  padding: 0;\n}\n\n/*\nPrevent resizing textareas horizontally by default.\n*/\n\ntextarea {\n  resize: vertical;\n}\n\n/*\n1. Reset the default placeholder opacity in Firefox. (https://github.com/tailwindlabs/tailwindcss/issues/3300)\n2. Set the default placeholder color to the user's configured gray 400 color.\n*/\n\ninput::-moz-placeholder, textarea::-moz-placeholder {\n  opacity: 1; /* 1 */\n  color: #9ca3af; /* 2 */\n}\n\ninput::placeholder,\ntextarea::placeholder {\n  opacity: 1; /* 1 */\n  color: #9ca3af; /* 2 */\n}\n\n/*\nSet the default cursor for buttons.\n*/\n\nbutton,\n[role=\"button\"] {\n  cursor: pointer;\n}\n\n/*\nMake sure disabled buttons don't get the pointer cursor.\n*/\n\n:disabled {\n  cursor: default;\n}\n\n/*\n1. Make replaced elements `display: block` by default. (https://github.com/mozdevs/cssremedy/issues/14)\n2. Add `vertical-align: middle` to align replaced elements more sensibly by default. (https://github.com/jensimmons/cssremedy/issues/14#issuecomment-634934210)\n   This can trigger a poorly considered lint error in some tools but is included by design.\n*/\n\nimg,\nsvg,\nvideo,\ncanvas,\naudio,\niframe,\nembed,\nobject {\n  display: block; /* 1 */\n  vertical-align: middle; /* 2 */\n}\n\n/*\nConstrain images and videos to the parent width and preserve their intrinsic aspect ratio. (https://github.com/mozdevs/cssremedy/issues/14)\n*/\n\nimg,\nvideo {\n  max-width: 100%;\n  height: auto;\n}\n\n/* Make elements with the HTML hidden attribute stay hidden by default */\n\n[hidden]:where(:not([hidden=\"until-found\"])) {\n  display: none;\n}\n.\\!container {\n  width: 100% !important;\n}\n.container {\n  width: 100%;\n}\n@media (min-width: 640px) {\n\n  .\\!container {\n    max-width: 640px !important;\n  }\n\n  .container {\n    max-width: 640px;\n  }\n}\n@media (min-width: 768px) {\n\n  .\\!container {\n    max-width: 768px !important;\n  }\n\n  .container {\n    max-width: 768px;\n  }\n}\n@media (min-width: 1024px) {\n\n  .\\!container {\n    max-width: 1024px !important;\n  }\n\n  .container {\n    max-width: 1024px;\n  }\n}\n@media (min-width: 1280px) {\n\n  .\\!container {\n    max-width: 1280px !important;\n  }\n\n  .container {\n    max-width: 1280px;\n  }\n}\n@media (min-width: 1536px) {\n\n  .\\!container {\n    max-width: 1536px !important;\n  }\n\n  .container {\n    max-width: 1536px;\n  }\n}\n.fixed {\n  position: fixed;\n}\n.absolute {\n  position: absolute;\n}\n.relative {\n  position: relative;\n}\n.inset-0 {\n  inset: 0px;\n}\n.bottom-20 {\n  bottom: 5rem;\n}\n.left-1\\/2 {\n  left: 50%;\n}\n.right-2 {\n  right: 0.5rem;\n}\n.right-4 {\n  right: 1rem;\n}\n.top-1\\/2 {\n  top: 50%;\n}\n.top-2 {\n  top: 0.5rem;\n}\n.z-\\[9998\\] {\n  z-index: 9998;\n}\n.z-\\[9999\\] {\n  z-index: 9999;\n}\n.mb-1 {\n  margin-bottom: 0.25rem;\n}\n.mb-2 {\n  margin-bottom: 0.5rem;\n}\n.mb-3 {\n  margin-bottom: 0.75rem;\n}\n.mt-1 {\n  margin-top: 0.25rem;\n}\n.mt-2 {\n  margin-top: 0.5rem;\n}\n.line-clamp-2 {\n  overflow: hidden;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n}\n.block {\n  display: block;\n}\n.inline {\n  display: inline;\n}\n.flex {\n  display: flex;\n}\n.inline-flex {\n  display: inline-flex;\n}\n.h-96 {\n  height: 24rem;\n}\n.max-h-\\[60vh\\] {\n  max-height: 60vh;\n}\n.w-80 {\n  width: 20rem;\n}\n.w-full {\n  width: 100%;\n}\n.min-w-0 {\n  min-width: 0px;\n}\n.min-w-\\[32px\\] {\n  min-width: 32px;\n}\n.flex-1 {\n  flex: 1 1 0%;\n}\n.-translate-x-1\\/2 {\n  --tw-translate-x: -50%;\n  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));\n}\n.-translate-y-1\\/2 {\n  --tw-translate-y: -50%;\n  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));\n}\n.resize-none {\n  resize: none;\n}\n.flex-col {\n  flex-direction: column;\n}\n.items-start {\n  align-items: flex-start;\n}\n.items-center {\n  align-items: center;\n}\n.justify-center {\n  justify-content: center;\n}\n.justify-between {\n  justify-content: space-between;\n}\n.gap-2 {\n  gap: 0.5rem;\n}\n.space-y-2 > :not([hidden]) ~ :not([hidden]) {\n  --tw-space-y-reverse: 0;\n  margin-top: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));\n  margin-bottom: calc(0.5rem * var(--tw-space-y-reverse));\n}\n.space-y-4 > :not([hidden]) ~ :not([hidden]) {\n  --tw-space-y-reverse: 0;\n  margin-top: calc(1rem * calc(1 - var(--tw-space-y-reverse)));\n  margin-bottom: calc(1rem * var(--tw-space-y-reverse));\n}\n.overflow-hidden {\n  overflow: hidden;\n}\n.overflow-y-auto {\n  overflow-y: auto;\n}\n.truncate {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n.rounded-full {\n  border-radius: 9999px;\n}\n.rounded-lg {\n  border-radius: 0.5rem;\n}\n.rounded-xl {\n  border-radius: 0.75rem;\n}\n.border {\n  border-width: 1px;\n}\n.border-2 {\n  border-width: 2px;\n}\n.border-b {\n  border-bottom-width: 1px;\n}\n.border-t {\n  border-top-width: 1px;\n}\n.border-amber-200 {\n  --tw-border-opacity: 1;\n  border-color: rgb(253 230 138 / var(--tw-border-opacity, 1));\n}\n.border-blue-500 {\n  --tw-border-opacity: 1;\n  border-color: rgb(59 130 246 / var(--tw-border-opacity, 1));\n}\n.border-gray-200 {\n  --tw-border-opacity: 1;\n  border-color: rgb(229 231 235 / var(--tw-border-opacity, 1));\n}\n.border-gray-300 {\n  --tw-border-opacity: 1;\n  border-color: rgb(209 213 219 / var(--tw-border-opacity, 1));\n}\n.border-green-200 {\n  --tw-border-opacity: 1;\n  border-color: rgb(187 247 208 / var(--tw-border-opacity, 1));\n}\n.border-red-200 {\n  --tw-border-opacity: 1;\n  border-color: rgb(254 202 202 / var(--tw-border-opacity, 1));\n}\n.bg-amber-100 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(254 243 199 / var(--tw-bg-opacity, 1));\n}\n.bg-amber-50 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(255 251 235 / var(--tw-bg-opacity, 1));\n}\n.bg-amber-500 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(245 158 11 / var(--tw-bg-opacity, 1));\n}\n.bg-black\\/20 {\n  background-color: rgb(0 0 0 / 0.2);\n}\n.bg-black\\/30 {\n  background-color: rgb(0 0 0 / 0.3);\n}\n.bg-blue-50 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(239 246 255 / var(--tw-bg-opacity, 1));\n}\n.bg-blue-500 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(59 130 246 / var(--tw-bg-opacity, 1));\n}\n.bg-emerald-500 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(16 185 129 / var(--tw-bg-opacity, 1));\n}\n.bg-gray-50 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(249 250 251 / var(--tw-bg-opacity, 1));\n}\n.bg-gray-500 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(107 114 128 / var(--tw-bg-opacity, 1));\n}\n.bg-green-100 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(220 252 231 / var(--tw-bg-opacity, 1));\n}\n.bg-green-50 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(240 253 244 / var(--tw-bg-opacity, 1));\n}\n.bg-red-100 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(254 226 226 / var(--tw-bg-opacity, 1));\n}\n.bg-red-50 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(254 242 242 / var(--tw-bg-opacity, 1));\n}\n.bg-teal-600 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(13 148 136 / var(--tw-bg-opacity, 1));\n}\n.bg-white {\n  --tw-bg-opacity: 1;\n  background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));\n}\n.bg-gradient-to-r {\n  background-image: linear-gradient(to right, var(--tw-gradient-stops));\n}\n.from-blue-500 {\n  --tw-gradient-from: #3b82f6 var(--tw-gradient-from-position);\n  --tw-gradient-to: rgb(59 130 246 / 0) var(--tw-gradient-to-position);\n  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);\n}\n.from-emerald-500 {\n  --tw-gradient-from: #10b981 var(--tw-gradient-from-position);\n  --tw-gradient-to: rgb(16 185 129 / 0) var(--tw-gradient-to-position);\n  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);\n}\n.to-indigo-500 {\n  --tw-gradient-to: #6366f1 var(--tw-gradient-to-position);\n}\n.to-teal-500 {\n  --tw-gradient-to: #14b8a6 var(--tw-gradient-to-position);\n}\n.p-1 {\n  padding: 0.25rem;\n}\n.p-2 {\n  padding: 0.5rem;\n}\n.p-3 {\n  padding: 0.75rem;\n}\n.p-4 {\n  padding: 1rem;\n}\n.px-2 {\n  padding-left: 0.5rem;\n  padding-right: 0.5rem;\n}\n.px-3 {\n  padding-left: 0.75rem;\n  padding-right: 0.75rem;\n}\n.px-4 {\n  padding-left: 1rem;\n  padding-right: 1rem;\n}\n.py-0\\.5 {\n  padding-top: 0.125rem;\n  padding-bottom: 0.125rem;\n}\n.py-12 {\n  padding-top: 3rem;\n  padding-bottom: 3rem;\n}\n.py-2 {\n  padding-top: 0.5rem;\n  padding-bottom: 0.5rem;\n}\n.py-3 {\n  padding-top: 0.75rem;\n  padding-bottom: 0.75rem;\n}\n.pr-6 {\n  padding-right: 1.5rem;\n}\n.pt-2 {\n  padding-top: 0.5rem;\n}\n.text-center {\n  text-align: center;\n}\n.text-4xl {\n  font-size: 2.25rem;\n  line-height: 2.5rem;\n}\n.text-lg {\n  font-size: 1.125rem;\n  line-height: 1.75rem;\n}\n.text-sm {\n  font-size: 0.875rem;\n  line-height: 1.25rem;\n}\n.text-xl {\n  font-size: 1.25rem;\n  line-height: 1.75rem;\n}\n.text-xs {\n  font-size: 0.75rem;\n  line-height: 1rem;\n}\n.font-bold {\n  font-weight: 700;\n}\n.font-medium {\n  font-weight: 500;\n}\n.font-semibold {\n  font-weight: 600;\n}\n.text-amber-700 {\n  --tw-text-opacity: 1;\n  color: rgb(180 83 9 / var(--tw-text-opacity, 1));\n}\n.text-blue-500 {\n  --tw-text-opacity: 1;\n  color: rgb(59 130 246 / var(--tw-text-opacity, 1));\n}\n.text-blue-700 {\n  --tw-text-opacity: 1;\n  color: rgb(29 78 216 / var(--tw-text-opacity, 1));\n}\n.text-gray-400 {\n  --tw-text-opacity: 1;\n  color: rgb(156 163 175 / var(--tw-text-opacity, 1));\n}\n.text-gray-500 {\n  --tw-text-opacity: 1;\n  color: rgb(107 114 128 / var(--tw-text-opacity, 1));\n}\n.text-gray-600 {\n  --tw-text-opacity: 1;\n  color: rgb(75 85 99 / var(--tw-text-opacity, 1));\n}\n.text-gray-700 {\n  --tw-text-opacity: 1;\n  color: rgb(55 65 81 / var(--tw-text-opacity, 1));\n}\n.text-gray-800 {\n  --tw-text-opacity: 1;\n  color: rgb(31 41 55 / var(--tw-text-opacity, 1));\n}\n.text-green-700 {\n  --tw-text-opacity: 1;\n  color: rgb(21 128 61 / var(--tw-text-opacity, 1));\n}\n.text-red-500 {\n  --tw-text-opacity: 1;\n  color: rgb(239 68 68 / var(--tw-text-opacity, 1));\n}\n.text-red-700 {\n  --tw-text-opacity: 1;\n  color: rgb(185 28 28 / var(--tw-text-opacity, 1));\n}\n.text-white {\n  --tw-text-opacity: 1;\n  color: rgb(255 255 255 / var(--tw-text-opacity, 1));\n}\n.text-white\\/80 {\n  color: rgb(255 255 255 / 0.8);\n}\n.opacity-0 {\n  opacity: 0;\n}\n.opacity-70 {\n  opacity: 0.7;\n}\n.shadow-2xl {\n  --tw-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);\n  --tw-shadow-colored: 0 25px 50px -12px var(--tw-shadow-color);\n  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);\n}\n.shadow-lg {\n  --tw-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);\n  --tw-shadow-colored: 0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);\n  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);\n}\n.outline-none {\n  outline: 2px solid transparent;\n  outline-offset: 2px;\n}\n.transition {\n  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;\n  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n  transition-duration: 150ms;\n}\n.transition-all {\n  transition-property: all;\n  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n  transition-duration: 150ms;\n}\n.transition-colors {\n  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;\n  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n  transition-duration: 150ms;\n}\n.transition-opacity {\n  transition-property: opacity;\n  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n  transition-duration: 150ms;\n}\n\n/* \u57FA\u7840\u6837\u5F0F\u91CD\u7F6E */\n:host {\n  all: initial;\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;\n}\n\n/* \u6D6E\u7A97\u52A8\u753B */\n@keyframes dropit-slide-in {\n  from {\n    opacity: 0;\n    transform: translateY(10px);\n  }\n  to {\n    opacity: 1;\n    transform: translateY(0);\n  }\n}\n\n@keyframes dropit-fade-in {\n  from { opacity: 0; }\n  to { opacity: 1; }\n}\n\n.dropit-slide-in {\n  animation: dropit-slide-in 0.2s ease-out;\n}\n\n.dropit-fade-in {\n  animation: dropit-fade-in 0.15s ease-out;\n}\n\n/* \u81EA\u5B9A\u4E49\u6EDA\u52A8\u6761\u6837\u5F0F */\n.dropit-scrollbar::-webkit-scrollbar {\n  width: 6px;\n}\n\n.dropit-scrollbar::-webkit-scrollbar-track {\n  background: transparent;\n}\n\n.dropit-scrollbar::-webkit-scrollbar-thumb {\n  background: rgba(156, 163, 175, 0.5);\n  border-radius: 3px;\n}\n\n.dropit-scrollbar::-webkit-scrollbar-thumb:hover {\n  background: rgba(107, 114, 128, 0.7);\n}\n\n.hover\\:border-amber-300:hover {\n  --tw-border-opacity: 1;\n  border-color: rgb(252 211 77 / var(--tw-border-opacity, 1));\n}\n\n.hover\\:border-gray-300:hover {\n  --tw-border-opacity: 1;\n  border-color: rgb(209 213 219 / var(--tw-border-opacity, 1));\n}\n\n.hover\\:border-green-300:hover {\n  --tw-border-opacity: 1;\n  border-color: rgb(134 239 172 / var(--tw-border-opacity, 1));\n}\n\n.hover\\:border-red-300:hover {\n  --tw-border-opacity: 1;\n  border-color: rgb(252 165 165 / var(--tw-border-opacity, 1));\n}\n\n.hover\\:bg-amber-600:hover {\n  --tw-bg-opacity: 1;\n  background-color: rgb(217 119 6 / var(--tw-bg-opacity, 1));\n}\n\n.hover\\:bg-blue-600:hover {\n  --tw-bg-opacity: 1;\n  background-color: rgb(37 99 235 / var(--tw-bg-opacity, 1));\n}\n\n.hover\\:bg-emerald-600:hover {\n  --tw-bg-opacity: 1;\n  background-color: rgb(5 150 105 / var(--tw-bg-opacity, 1));\n}\n\n.hover\\:bg-gray-50:hover {\n  --tw-bg-opacity: 1;\n  background-color: rgb(249 250 251 / var(--tw-bg-opacity, 1));\n}\n\n.hover\\:bg-gray-600:hover {\n  --tw-bg-opacity: 1;\n  background-color: rgb(75 85 99 / var(--tw-bg-opacity, 1));\n}\n\n.hover\\:bg-teal-700:hover {\n  --tw-bg-opacity: 1;\n  background-color: rgb(15 118 110 / var(--tw-bg-opacity, 1));\n}\n\n.hover\\:text-red-500:hover {\n  --tw-text-opacity: 1;\n  color: rgb(239 68 68 / var(--tw-text-opacity, 1));\n}\n\n.hover\\:text-white:hover {\n  --tw-text-opacity: 1;\n  color: rgb(255 255 255 / var(--tw-text-opacity, 1));\n}\n\n.hover\\:underline:hover {\n  text-decoration-line: underline;\n}\n\n.hover\\:shadow-md:hover {\n  --tw-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);\n  --tw-shadow-colored: 0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -2px var(--tw-shadow-color);\n  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);\n}\n\n.focus\\:border-blue-500:focus {\n  --tw-border-opacity: 1;\n  border-color: rgb(59 130 246 / var(--tw-border-opacity, 1));\n}\n\n.focus\\:ring-2:focus {\n  --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);\n  --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);\n  box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);\n}\n\n.focus\\:ring-blue-500:focus {\n  --tw-ring-opacity: 1;\n  --tw-ring-color: rgb(59 130 246 / var(--tw-ring-opacity, 1));\n}\n\n.disabled\\:cursor-not-allowed:disabled {\n  cursor: not-allowed;\n}\n\n.disabled\\:bg-gray-300:disabled {\n  --tw-bg-opacity: 1;\n  background-color: rgb(209 213 219 / var(--tw-bg-opacity, 1));\n}\n\n.group:hover .group-hover\\:opacity-100 {\n  opacity: 1;\n}\n";
+  var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
+  var contentCss = "/**\n * Content Script \u4E13\u7528\u6837\u5F0F\n * \u7528\u4E8E Shadow DOM \u5185\u90E8\uFF0C\u4F7F\u7528 Tailwind CSS\n */\n\n*, ::before, ::after {\n  --tw-border-spacing-x: 0;\n  --tw-border-spacing-y: 0;\n  --tw-translate-x: 0;\n  --tw-translate-y: 0;\n  --tw-rotate: 0;\n  --tw-skew-x: 0;\n  --tw-skew-y: 0;\n  --tw-scale-x: 1;\n  --tw-scale-y: 1;\n  --tw-pan-x:  ;\n  --tw-pan-y:  ;\n  --tw-pinch-zoom:  ;\n  --tw-scroll-snap-strictness: proximity;\n  --tw-gradient-from-position:  ;\n  --tw-gradient-via-position:  ;\n  --tw-gradient-to-position:  ;\n  --tw-ordinal:  ;\n  --tw-slashed-zero:  ;\n  --tw-numeric-figure:  ;\n  --tw-numeric-spacing:  ;\n  --tw-numeric-fraction:  ;\n  --tw-ring-inset:  ;\n  --tw-ring-offset-width: 0px;\n  --tw-ring-offset-color: #fff;\n  --tw-ring-color: rgb(59 130 246 / 0.5);\n  --tw-ring-offset-shadow: 0 0 #0000;\n  --tw-ring-shadow: 0 0 #0000;\n  --tw-shadow: 0 0 #0000;\n  --tw-shadow-colored: 0 0 #0000;\n  --tw-blur:  ;\n  --tw-brightness:  ;\n  --tw-contrast:  ;\n  --tw-grayscale:  ;\n  --tw-hue-rotate:  ;\n  --tw-invert:  ;\n  --tw-saturate:  ;\n  --tw-sepia:  ;\n  --tw-drop-shadow:  ;\n  --tw-backdrop-blur:  ;\n  --tw-backdrop-brightness:  ;\n  --tw-backdrop-contrast:  ;\n  --tw-backdrop-grayscale:  ;\n  --tw-backdrop-hue-rotate:  ;\n  --tw-backdrop-invert:  ;\n  --tw-backdrop-opacity:  ;\n  --tw-backdrop-saturate:  ;\n  --tw-backdrop-sepia:  ;\n  --tw-contain-size:  ;\n  --tw-contain-layout:  ;\n  --tw-contain-paint:  ;\n  --tw-contain-style:  ;\n}\n\n::backdrop {\n  --tw-border-spacing-x: 0;\n  --tw-border-spacing-y: 0;\n  --tw-translate-x: 0;\n  --tw-translate-y: 0;\n  --tw-rotate: 0;\n  --tw-skew-x: 0;\n  --tw-skew-y: 0;\n  --tw-scale-x: 1;\n  --tw-scale-y: 1;\n  --tw-pan-x:  ;\n  --tw-pan-y:  ;\n  --tw-pinch-zoom:  ;\n  --tw-scroll-snap-strictness: proximity;\n  --tw-gradient-from-position:  ;\n  --tw-gradient-via-position:  ;\n  --tw-gradient-to-position:  ;\n  --tw-ordinal:  ;\n  --tw-slashed-zero:  ;\n  --tw-numeric-figure:  ;\n  --tw-numeric-spacing:  ;\n  --tw-numeric-fraction:  ;\n  --tw-ring-inset:  ;\n  --tw-ring-offset-width: 0px;\n  --tw-ring-offset-color: #fff;\n  --tw-ring-color: rgb(59 130 246 / 0.5);\n  --tw-ring-offset-shadow: 0 0 #0000;\n  --tw-ring-shadow: 0 0 #0000;\n  --tw-shadow: 0 0 #0000;\n  --tw-shadow-colored: 0 0 #0000;\n  --tw-blur:  ;\n  --tw-brightness:  ;\n  --tw-contrast:  ;\n  --tw-grayscale:  ;\n  --tw-hue-rotate:  ;\n  --tw-invert:  ;\n  --tw-saturate:  ;\n  --tw-sepia:  ;\n  --tw-drop-shadow:  ;\n  --tw-backdrop-blur:  ;\n  --tw-backdrop-brightness:  ;\n  --tw-backdrop-contrast:  ;\n  --tw-backdrop-grayscale:  ;\n  --tw-backdrop-hue-rotate:  ;\n  --tw-backdrop-invert:  ;\n  --tw-backdrop-opacity:  ;\n  --tw-backdrop-saturate:  ;\n  --tw-backdrop-sepia:  ;\n  --tw-contain-size:  ;\n  --tw-contain-layout:  ;\n  --tw-contain-paint:  ;\n  --tw-contain-style:  ;\n}\n\n/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com\n */\n\n/*\n1. Prevent padding and border from affecting element width. (https://github.com/mozdevs/cssremedy/issues/4)\n2. Allow adding a border to an element by just adding a border-width. (https://github.com/tailwindcss/tailwindcss/pull/116)\n*/\n\n*,\n::before,\n::after {\n  box-sizing: border-box; /* 1 */\n  border-width: 0; /* 2 */\n  border-style: solid; /* 2 */\n  border-color: #e5e7eb; /* 2 */\n}\n\n::before,\n::after {\n  --tw-content: '';\n}\n\n/*\n1. Use a consistent sensible line-height in all browsers.\n2. Prevent adjustments of font size after orientation changes in iOS.\n3. Use a more readable tab size.\n4. Use the user's configured `sans` font-family by default.\n5. Use the user's configured `sans` font-feature-settings by default.\n6. Use the user's configured `sans` font-variation-settings by default.\n7. Disable tap highlights on iOS\n*/\n\nhtml,\n:host {\n  line-height: 1.5; /* 1 */\n  -webkit-text-size-adjust: 100%; /* 2 */\n  -moz-tab-size: 4; /* 3 */\n  -o-tab-size: 4;\n     tab-size: 4; /* 3 */\n  font-family: ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"; /* 4 */\n  font-feature-settings: normal; /* 5 */\n  font-variation-settings: normal; /* 6 */\n  -webkit-tap-highlight-color: transparent; /* 7 */\n}\n\n/*\n1. Remove the margin in all browsers.\n2. Inherit line-height from `html` so users can set them as a class directly on the `html` element.\n*/\n\nbody {\n  margin: 0; /* 1 */\n  line-height: inherit; /* 2 */\n}\n\n/*\n1. Add the correct height in Firefox.\n2. Correct the inheritance of border color in Firefox. (https://bugzilla.mozilla.org/show_bug.cgi?id=190655)\n3. Ensure horizontal rules are visible by default.\n*/\n\nhr {\n  height: 0; /* 1 */\n  color: inherit; /* 2 */\n  border-top-width: 1px; /* 3 */\n}\n\n/*\nAdd the correct text decoration in Chrome, Edge, and Safari.\n*/\n\nabbr:where([title]) {\n  -webkit-text-decoration: underline dotted;\n          text-decoration: underline dotted;\n}\n\n/*\nRemove the default font size and weight for headings.\n*/\n\nh1,\nh2,\nh3,\nh4,\nh5,\nh6 {\n  font-size: inherit;\n  font-weight: inherit;\n}\n\n/*\nReset links to optimize for opt-in styling instead of opt-out.\n*/\n\na {\n  color: inherit;\n  text-decoration: inherit;\n}\n\n/*\nAdd the correct font weight in Edge and Safari.\n*/\n\nb,\nstrong {\n  font-weight: bolder;\n}\n\n/*\n1. Use the user's configured `mono` font-family by default.\n2. Use the user's configured `mono` font-feature-settings by default.\n3. Use the user's configured `mono` font-variation-settings by default.\n4. Correct the odd `em` font sizing in all browsers.\n*/\n\ncode,\nkbd,\nsamp,\npre {\n  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace; /* 1 */\n  font-feature-settings: normal; /* 2 */\n  font-variation-settings: normal; /* 3 */\n  font-size: 1em; /* 4 */\n}\n\n/*\nAdd the correct font size in all browsers.\n*/\n\nsmall {\n  font-size: 80%;\n}\n\n/*\nPrevent `sub` and `sup` elements from affecting the line height in all browsers.\n*/\n\nsub,\nsup {\n  font-size: 75%;\n  line-height: 0;\n  position: relative;\n  vertical-align: baseline;\n}\n\nsub {\n  bottom: -0.25em;\n}\n\nsup {\n  top: -0.5em;\n}\n\n/*\n1. Remove text indentation from table contents in Chrome and Safari. (https://bugs.chromium.org/p/chromium/issues/detail?id=999088, https://bugs.webkit.org/show_bug.cgi?id=201297)\n2. Correct table border color inheritance in all Chrome and Safari. (https://bugs.chromium.org/p/chromium/issues/detail?id=935729, https://bugs.webkit.org/show_bug.cgi?id=195016)\n3. Remove gaps between table borders by default.\n*/\n\ntable {\n  text-indent: 0; /* 1 */\n  border-color: inherit; /* 2 */\n  border-collapse: collapse; /* 3 */\n}\n\n/*\n1. Change the font styles in all browsers.\n2. Remove the margin in Firefox and Safari.\n3. Remove default padding in all browsers.\n*/\n\nbutton,\ninput,\noptgroup,\nselect,\ntextarea {\n  font-family: inherit; /* 1 */\n  font-feature-settings: inherit; /* 1 */\n  font-variation-settings: inherit; /* 1 */\n  font-size: 100%; /* 1 */\n  font-weight: inherit; /* 1 */\n  line-height: inherit; /* 1 */\n  letter-spacing: inherit; /* 1 */\n  color: inherit; /* 1 */\n  margin: 0; /* 2 */\n  padding: 0; /* 3 */\n}\n\n/*\nRemove the inheritance of text transform in Edge and Firefox.\n*/\n\nbutton,\nselect {\n  text-transform: none;\n}\n\n/*\n1. Correct the inability to style clickable types in iOS and Safari.\n2. Remove default button styles.\n*/\n\nbutton,\ninput:where([type='button']),\ninput:where([type='reset']),\ninput:where([type='submit']) {\n  -webkit-appearance: button; /* 1 */\n  background-color: transparent; /* 2 */\n  background-image: none; /* 2 */\n}\n\n/*\nUse the modern Firefox focus style for all focusable elements.\n*/\n\n:-moz-focusring {\n  outline: auto;\n}\n\n/*\nRemove the additional `:invalid` styles in Firefox. (https://github.com/mozilla/gecko-dev/blob/2f9eacd9d3d995c937b4251a5557d95d494c9be1/layout/style/res/forms.css#L728-L737)\n*/\n\n:-moz-ui-invalid {\n  box-shadow: none;\n}\n\n/*\nAdd the correct vertical alignment in Chrome and Firefox.\n*/\n\nprogress {\n  vertical-align: baseline;\n}\n\n/*\nCorrect the cursor style of increment and decrement buttons in Safari.\n*/\n\n::-webkit-inner-spin-button,\n::-webkit-outer-spin-button {\n  height: auto;\n}\n\n/*\n1. Correct the odd appearance in Chrome and Safari.\n2. Correct the outline style in Safari.\n*/\n\n[type='search'] {\n  -webkit-appearance: textfield; /* 1 */\n  outline-offset: -2px; /* 2 */\n}\n\n/*\nRemove the inner padding in Chrome and Safari on macOS.\n*/\n\n::-webkit-search-decoration {\n  -webkit-appearance: none;\n}\n\n/*\n1. Correct the inability to style clickable types in iOS and Safari.\n2. Change font properties to `inherit` in Safari.\n*/\n\n::-webkit-file-upload-button {\n  -webkit-appearance: button; /* 1 */\n  font: inherit; /* 2 */\n}\n\n/*\nAdd the correct display in Chrome and Safari.\n*/\n\nsummary {\n  display: list-item;\n}\n\n/*\nRemoves the default spacing and border for appropriate elements.\n*/\n\nblockquote,\ndl,\ndd,\nh1,\nh2,\nh3,\nh4,\nh5,\nh6,\nhr,\nfigure,\np,\npre {\n  margin: 0;\n}\n\nfieldset {\n  margin: 0;\n  padding: 0;\n}\n\nlegend {\n  padding: 0;\n}\n\nol,\nul,\nmenu {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n\n/*\nReset default styling for dialogs.\n*/\n\ndialog {\n  padding: 0;\n}\n\n/*\nPrevent resizing textareas horizontally by default.\n*/\n\ntextarea {\n  resize: vertical;\n}\n\n/*\n1. Reset the default placeholder opacity in Firefox. (https://github.com/tailwindlabs/tailwindcss/issues/3300)\n2. Set the default placeholder color to the user's configured gray 400 color.\n*/\n\ninput::-moz-placeholder, textarea::-moz-placeholder {\n  opacity: 1; /* 1 */\n  color: #9ca3af; /* 2 */\n}\n\ninput::placeholder,\ntextarea::placeholder {\n  opacity: 1; /* 1 */\n  color: #9ca3af; /* 2 */\n}\n\n/*\nSet the default cursor for buttons.\n*/\n\nbutton,\n[role=\"button\"] {\n  cursor: pointer;\n}\n\n/*\nMake sure disabled buttons don't get the pointer cursor.\n*/\n\n:disabled {\n  cursor: default;\n}\n\n/*\n1. Make replaced elements `display: block` by default. (https://github.com/mozdevs/cssremedy/issues/14)\n2. Add `vertical-align: middle` to align replaced elements more sensibly by default. (https://github.com/jensimmons/cssremedy/issues/14#issuecomment-634934210)\n   This can trigger a poorly considered lint error in some tools but is included by design.\n*/\n\nimg,\nsvg,\nvideo,\ncanvas,\naudio,\niframe,\nembed,\nobject {\n  display: block; /* 1 */\n  vertical-align: middle; /* 2 */\n}\n\n/*\nConstrain images and videos to the parent width and preserve their intrinsic aspect ratio. (https://github.com/mozdevs/cssremedy/issues/14)\n*/\n\nimg,\nvideo {\n  max-width: 100%;\n  height: auto;\n}\n\n/* Make elements with the HTML hidden attribute stay hidden by default */\n\n[hidden]:where(:not([hidden=\"until-found\"])) {\n  display: none;\n}\n.\\!container {\n  width: 100% !important;\n}\n.container {\n  width: 100%;\n}\n@media (min-width: 640px) {\n\n  .\\!container {\n    max-width: 640px !important;\n  }\n\n  .container {\n    max-width: 640px;\n  }\n}\n@media (min-width: 768px) {\n\n  .\\!container {\n    max-width: 768px !important;\n  }\n\n  .container {\n    max-width: 768px;\n  }\n}\n@media (min-width: 1024px) {\n\n  .\\!container {\n    max-width: 1024px !important;\n  }\n\n  .container {\n    max-width: 1024px;\n  }\n}\n@media (min-width: 1280px) {\n\n  .\\!container {\n    max-width: 1280px !important;\n  }\n\n  .container {\n    max-width: 1280px;\n  }\n}\n@media (min-width: 1536px) {\n\n  .\\!container {\n    max-width: 1536px !important;\n  }\n\n  .container {\n    max-width: 1536px;\n  }\n}\n.fixed {\n  position: fixed;\n}\n.absolute {\n  position: absolute;\n}\n.relative {\n  position: relative;\n}\n.inset-0 {\n  inset: 0px;\n}\n.right-2 {\n  right: 0.5rem;\n}\n.top-2 {\n  top: 0.5rem;\n}\n.z-\\[9998\\] {\n  z-index: 9998;\n}\n.mb-3 {\n  margin-bottom: 0.75rem;\n}\n.mt-1 {\n  margin-top: 0.25rem;\n}\n.mt-1\\.5 {\n  margin-top: 0.375rem;\n}\n.line-clamp-2 {\n  overflow: hidden;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 2;\n}\n.inline-block {\n  display: inline-block;\n}\n.inline {\n  display: inline;\n}\n.flex {\n  display: flex;\n}\n.inline-flex {\n  display: inline-flex;\n}\n.h-3\\.5 {\n  height: 0.875rem;\n}\n.h-5 {\n  height: 1.25rem;\n}\n.h-96 {\n  height: 24rem;\n}\n.max-h-\\[60vh\\] {\n  max-height: 60vh;\n}\n.w-20 {\n  width: 5rem;\n}\n.w-3\\.5 {\n  width: 0.875rem;\n}\n.w-80 {\n  width: 20rem;\n}\n.w-9 {\n  width: 2.25rem;\n}\n.min-w-\\[32px\\] {\n  min-width: 32px;\n}\n.flex-1 {\n  flex: 1 1 0%;\n}\n.translate-x-1 {\n  --tw-translate-x: 0.25rem;\n  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));\n}\n.translate-x-5 {\n  --tw-translate-x: 1.25rem;\n  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));\n}\n.transform {\n  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));\n}\n.cursor-pointer {\n  cursor: pointer;\n}\n.flex-col {\n  flex-direction: column;\n}\n.items-center {\n  align-items: center;\n}\n.justify-center {\n  justify-content: center;\n}\n.justify-between {\n  justify-content: space-between;\n}\n.gap-2 {\n  gap: 0.5rem;\n}\n.space-y-1\\.5 > :not([hidden]) ~ :not([hidden]) {\n  --tw-space-y-reverse: 0;\n  margin-top: calc(0.375rem * calc(1 - var(--tw-space-y-reverse)));\n  margin-bottom: calc(0.375rem * var(--tw-space-y-reverse));\n}\n.space-y-3 > :not([hidden]) ~ :not([hidden]) {\n  --tw-space-y-reverse: 0;\n  margin-top: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));\n  margin-bottom: calc(0.75rem * var(--tw-space-y-reverse));\n}\n.space-y-4 > :not([hidden]) ~ :not([hidden]) {\n  --tw-space-y-reverse: 0;\n  margin-top: calc(1rem * calc(1 - var(--tw-space-y-reverse)));\n  margin-bottom: calc(1rem * var(--tw-space-y-reverse));\n}\n.overflow-hidden {\n  overflow: hidden;\n}\n.overflow-y-auto {\n  overflow-y: auto;\n}\n.rounded {\n  border-radius: 0.25rem;\n}\n.rounded-full {\n  border-radius: 9999px;\n}\n.rounded-lg {\n  border-radius: 0.5rem;\n}\n.rounded-xl {\n  border-radius: 0.75rem;\n}\n.border {\n  border-width: 1px;\n}\n.border-b {\n  border-bottom-width: 1px;\n}\n.border-t {\n  border-top-width: 1px;\n}\n.border-gray-100 {\n  --tw-border-opacity: 1;\n  border-color: rgb(243 244 246 / var(--tw-border-opacity, 1));\n}\n.border-gray-200 {\n  --tw-border-opacity: 1;\n  border-color: rgb(229 231 235 / var(--tw-border-opacity, 1));\n}\n.border-gray-300 {\n  --tw-border-opacity: 1;\n  border-color: rgb(209 213 219 / var(--tw-border-opacity, 1));\n}\n.bg-amber-500 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(245 158 11 / var(--tw-bg-opacity, 1));\n}\n.bg-black\\/20 {\n  background-color: rgb(0 0 0 / 0.2);\n}\n.bg-blue-500 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(59 130 246 / var(--tw-bg-opacity, 1));\n}\n.bg-gray-300 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(209 213 219 / var(--tw-bg-opacity, 1));\n}\n.bg-gray-400 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(156 163 175 / var(--tw-bg-opacity, 1));\n}\n.bg-gray-50 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(249 250 251 / var(--tw-bg-opacity, 1));\n}\n.bg-purple-700 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(126 34 206 / var(--tw-bg-opacity, 1));\n}\n.bg-violet-500 {\n  --tw-bg-opacity: 1;\n  background-color: rgb(139 92 246 / var(--tw-bg-opacity, 1));\n}\n.bg-white {\n  --tw-bg-opacity: 1;\n  background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));\n}\n.bg-gradient-to-r {\n  background-image: linear-gradient(to right, var(--tw-gradient-stops));\n}\n.from-violet-500 {\n  --tw-gradient-from: #8b5cf6 var(--tw-gradient-from-position);\n  --tw-gradient-to: rgb(139 92 246 / 0) var(--tw-gradient-to-position);\n  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);\n}\n.to-purple-600 {\n  --tw-gradient-to: #9333ea var(--tw-gradient-to-position);\n}\n.p-1 {\n  padding: 0.25rem;\n}\n.p-2 {\n  padding: 0.5rem;\n}\n.p-3 {\n  padding: 0.75rem;\n}\n.p-4 {\n  padding: 1rem;\n}\n.px-2 {\n  padding-left: 0.5rem;\n  padding-right: 0.5rem;\n}\n.px-3 {\n  padding-left: 0.75rem;\n  padding-right: 0.75rem;\n}\n.px-4 {\n  padding-left: 1rem;\n  padding-right: 1rem;\n}\n.py-1 {\n  padding-top: 0.25rem;\n  padding-bottom: 0.25rem;\n}\n.py-12 {\n  padding-top: 3rem;\n  padding-bottom: 3rem;\n}\n.py-2 {\n  padding-top: 0.5rem;\n  padding-bottom: 0.5rem;\n}\n.py-3 {\n  padding-top: 0.75rem;\n  padding-bottom: 0.75rem;\n}\n.pr-6 {\n  padding-right: 1.5rem;\n}\n.text-center {\n  text-align: center;\n}\n.text-4xl {\n  font-size: 2.25rem;\n  line-height: 2.5rem;\n}\n.text-lg {\n  font-size: 1.125rem;\n  line-height: 1.75rem;\n}\n.text-sm {\n  font-size: 0.875rem;\n  line-height: 1.25rem;\n}\n.text-xl {\n  font-size: 1.25rem;\n  line-height: 1.75rem;\n}\n.text-xs {\n  font-size: 0.75rem;\n  line-height: 1rem;\n}\n.font-bold {\n  font-weight: 700;\n}\n.font-medium {\n  font-weight: 500;\n}\n.font-semibold {\n  font-weight: 600;\n}\n.leading-snug {\n  line-height: 1.375;\n}\n.text-gray-300 {\n  --tw-text-opacity: 1;\n  color: rgb(209 213 219 / var(--tw-text-opacity, 1));\n}\n.text-gray-400 {\n  --tw-text-opacity: 1;\n  color: rgb(156 163 175 / var(--tw-text-opacity, 1));\n}\n.text-gray-500 {\n  --tw-text-opacity: 1;\n  color: rgb(107 114 128 / var(--tw-text-opacity, 1));\n}\n.text-gray-600 {\n  --tw-text-opacity: 1;\n  color: rgb(75 85 99 / var(--tw-text-opacity, 1));\n}\n.text-gray-700 {\n  --tw-text-opacity: 1;\n  color: rgb(55 65 81 / var(--tw-text-opacity, 1));\n}\n.text-gray-800 {\n  --tw-text-opacity: 1;\n  color: rgb(31 41 55 / var(--tw-text-opacity, 1));\n}\n.text-white {\n  --tw-text-opacity: 1;\n  color: rgb(255 255 255 / var(--tw-text-opacity, 1));\n}\n.text-white\\/80 {\n  color: rgb(255 255 255 / 0.8);\n}\n.opacity-0 {\n  opacity: 0;\n}\n.shadow-2xl {\n  --tw-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);\n  --tw-shadow-colored: 0 25px 50px -12px var(--tw-shadow-color);\n  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);\n}\n.shadow-lg {\n  --tw-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);\n  --tw-shadow-colored: 0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);\n  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);\n}\n.transition {\n  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;\n  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n  transition-duration: 150ms;\n}\n.transition-all {\n  transition-property: all;\n  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n  transition-duration: 150ms;\n}\n.transition-colors {\n  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;\n  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n  transition-duration: 150ms;\n}\n.transition-opacity {\n  transition-property: opacity;\n  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n  transition-duration: 150ms;\n}\n.transition-transform {\n  transition-property: transform;\n  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n  transition-duration: 150ms;\n}\n\n/* \u57FA\u7840\u6837\u5F0F\u91CD\u7F6E */\n:host {\n  all: initial;\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;\n}\n\n/* \u6D6E\u7A97\u52A8\u753B */\n@keyframes dropit-slide-in {\n  from {\n    opacity: 0;\n    transform: translateY(10px);\n  }\n  to {\n    opacity: 1;\n    transform: translateY(0);\n  }\n}\n\n@keyframes dropit-fade-in {\n  from { opacity: 0; }\n  to { opacity: 1; }\n}\n\n.dropit-slide-in {\n  animation: dropit-slide-in 0.2s ease-out;\n}\n\n.dropit-fade-in {\n  animation: dropit-fade-in 0.15s ease-out;\n}\n\n/* \u81EA\u5B9A\u4E49\u6EDA\u52A8\u6761\u6837\u5F0F */\n.dropit-scrollbar::-webkit-scrollbar {\n  width: 6px;\n}\n\n.dropit-scrollbar::-webkit-scrollbar-track {\n  background: transparent;\n}\n\n.dropit-scrollbar::-webkit-scrollbar-thumb {\n  background: rgba(156, 163, 175, 0.5);\n  border-radius: 3px;\n}\n\n.dropit-scrollbar::-webkit-scrollbar-thumb:hover {\n  background: rgba(107, 114, 128, 0.7);\n}\n\n.hover\\:bg-amber-600:hover {\n  --tw-bg-opacity: 1;\n  background-color: rgb(217 119 6 / var(--tw-bg-opacity, 1));\n}\n\n.hover\\:bg-gray-50:hover {\n  --tw-bg-opacity: 1;\n  background-color: rgb(249 250 251 / var(--tw-bg-opacity, 1));\n}\n\n.hover\\:bg-gray-500:hover {\n  --tw-bg-opacity: 1;\n  background-color: rgb(107 114 128 / var(--tw-bg-opacity, 1));\n}\n\n.hover\\:bg-purple-800:hover {\n  --tw-bg-opacity: 1;\n  background-color: rgb(107 33 168 / var(--tw-bg-opacity, 1));\n}\n\n.hover\\:bg-violet-600:hover {\n  --tw-bg-opacity: 1;\n  background-color: rgb(124 58 237 / var(--tw-bg-opacity, 1));\n}\n\n.hover\\:text-red-500:hover {\n  --tw-text-opacity: 1;\n  color: rgb(239 68 68 / var(--tw-text-opacity, 1));\n}\n\n.hover\\:text-white:hover {\n  --tw-text-opacity: 1;\n  color: rgb(255 255 255 / var(--tw-text-opacity, 1));\n}\n\n.hover\\:shadow-sm:hover {\n  --tw-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);\n  --tw-shadow-colored: 0 1px 2px 0 var(--tw-shadow-color);\n  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);\n}\n\n.focus\\:border-transparent:focus {\n  border-color: transparent;\n}\n\n.focus\\:outline-none:focus {\n  outline: 2px solid transparent;\n  outline-offset: 2px;\n}\n\n.focus\\:ring-2:focus {\n  --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);\n  --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);\n  box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);\n}\n\n.focus\\:ring-blue-500:focus {\n  --tw-ring-opacity: 1;\n  --tw-ring-color: rgb(59 130 246 / var(--tw-ring-opacity, 1));\n}\n\n.disabled\\:cursor-not-allowed:disabled {\n  cursor: not-allowed;\n}\n\n.disabled\\:bg-gray-300:disabled {\n  --tw-bg-opacity: 1;\n  background-color: rgb(209 213 219 / var(--tw-bg-opacity, 1));\n}\n\n.group:hover .group-hover\\:opacity-100 {\n  opacity: 1;\n}\n";
   var SHADOW_HOST_ID = "dropit-shadow-host";
   function createShadowHost() {
     let host = document.getElementById(SHADOW_HOST_ID);
@@ -8175,7 +8002,7 @@ var DropIt = (() => {
     }
     const root = import_client.default.createRoot(container);
     root.render(
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_react5.default.StrictMode, { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ContentApp, {}) })
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(import_react4.default.StrictMode, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ContentApp, {}) })
     );
   }
   function init() {

@@ -25,6 +25,26 @@
   "action": {
     "default_popup": "popup.html"
   },
+  "commands": {
+    "push-page": {
+      "suggested_key": {
+        "default": "Alt+P"
+      },
+      "description": "保存当前页面到稍后阅读"
+    },
+    "pop-page": {
+      "suggested_key": {
+        "default": "Alt+O"
+      },
+      "description": "读取栈顶页面"
+    },
+    "toggle-peek": {
+      "suggested_key": {
+        "default": "Alt+L"
+      },
+      "description": "打开/关闭稍后阅读列表"
+    }
+  },
   "web_accessible_resources": [
     {
       "resources": ["popup.html"],

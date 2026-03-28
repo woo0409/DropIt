@@ -20,6 +20,19 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
+// 监听快捷键命令
+chrome.commands.onCommand.addListener(async (command) => {
+  console.log('Background received command:', command);
+
+  // 获取当前活动标签页
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+
+  // 向 content script 发送消息执行对应操作
+  // 将横杠替换成下划线以匹配 content script 的消息类型
+  chrome.tabs.sendMessage(tab.id, { type: command.toUpperCase().replace(/-/g, '_') });
+});
+
 // 监听来自 content script 和 popup 的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Background received message:', message);
@@ -36,6 +49,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       }
       return true;
+
+    case 'CLOSE_TAB':
+      // 关闭发送消息的标签页
+      if (sender.tab?.id) {
+        chrome.tabs.remove(sender.tab.id);
+      }
+      return false;
 
     default:
       return false;
