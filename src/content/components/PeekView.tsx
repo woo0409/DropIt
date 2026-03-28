@@ -3,6 +3,7 @@
  * 显示稍后阅读列表，支持弹栈、删除
  */
 
+import { useState, useEffect } from 'react';
 import { useStackStore } from '../../store/stackStore';
 import { StackItem } from '../../types';
 
@@ -11,6 +12,12 @@ interface PeekViewProps {
   onClose: () => void;
   onQuickPush: () => void;
   widgetPosition: { right: number; bottom: number };
+}
+
+// 删除确认状态
+interface DeleteConfirmState {
+  itemId: string | null;
+  timestamp: number;
 }
 
 // 格式化挂起时长
@@ -32,6 +39,22 @@ export default function PeekView({ isOpen, onClose, onQuickPush, widgetPosition 
   const items = useStackStore((state) => state.items);
   const pop = useStackStore((state) => state.pop);
   const remove = useStackStore((state) => state.remove);
+
+  // 删除确认状态
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>({
+    itemId: null,
+    timestamp: 0,
+  });
+
+  // 检查确认是否超时（2秒）
+  useEffect(() => {
+    if (deleteConfirm.itemId) {
+      const timer = setTimeout(() => {
+        setDeleteConfirm({ itemId: null, timestamp: 0 });
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [deleteConfirm.itemId]);
 
   // 倒序展示（最新在前）
   const reversedItems = [...items].reverse();
@@ -79,6 +102,23 @@ export default function PeekView({ isOpen, onClose, onQuickPush, widgetPosition 
     window.open(item.url, '_blank');
   };
 
+  // 处理删除按钮点击（二次确认）
+  const handleDeleteClick = (e: React.MouseEvent, itemId: string) => {
+    e.stopPropagation();
+
+    if (deleteConfirm.itemId === itemId) {
+      // 确认删除
+      remove(itemId);
+      setDeleteConfirm({ itemId: null, timestamp: 0 });
+    } else {
+      // 第一次点击，显示确认
+      setDeleteConfirm({ itemId, timestamp: Date.now() });
+    }
+  };
+
+  // 检查某个项目是否处于确认状态
+  const isConfirming = (itemId: string) => deleteConfirm.itemId === itemId;
+
   if (!isOpen) return null;
 
   return (
@@ -94,7 +134,7 @@ export default function PeekView({ isOpen, onClose, onQuickPush, widgetPosition 
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className="bg-gradient-to-r from-violet-500 to-purple-600 px-4 py-3 flex items-center justify-between">
+        <div className="bg-slate-800 px-4 py-3 flex items-center justify-between">
           <h2 className="text-white font-semibold text-lg">📖 稍后阅读</h2>
           <div className="flex items-center gap-2">
             <span className="text-white/80 text-sm">{items.length} 篇</span>
@@ -126,14 +166,15 @@ export default function PeekView({ isOpen, onClose, onQuickPush, widgetPosition 
                 >
                   {/* 删除按钮 */}
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      remove(item.id);
-                    }}
-                    className="absolute top-2 right-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                    title="删除"
+                    onClick={(e) => handleDeleteClick(e, item.id)}
+                    className={`absolute top-2 right-2 transition-opacity p-1 text-xs ${
+                      isConfirming(item.id)
+                        ? 'text-red-600 hover:text-red-700 bg-red-50 rounded opacity-100'
+                        : 'text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100'
+                    }`}
+                    title={isConfirming(item.id) ? '确认删除？' : '删除'}
                   >
-                    ✕
+                    {isConfirming(item.id) ? '确认？' : '✕'}
                   </button>
 
                   {/* 标题 */}
@@ -158,14 +199,14 @@ export default function PeekView({ isOpen, onClose, onQuickPush, widgetPosition 
           <button
             onClick={handlePop}
             disabled={items.length === 0}
-            className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
+            className="flex-1 px-4 py-2 bg-stone-600 hover:bg-stone-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
             title="打开最近保存的页面"
           >
             📤 读取
           </button>
           <button
             onClick={onQuickPush}
-            className="flex-1 px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg font-medium transition-colors text-sm"
+            className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-medium transition-colors text-sm"
             title="保存当前页面"
           >
             📥 保存

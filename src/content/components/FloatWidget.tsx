@@ -12,11 +12,12 @@ interface FloatWidgetProps {
   isExpanded: boolean;
   onToggle: () => void;
   onPositionChange: (position: { right: number; bottom: number }) => void;
+  onDoubleClickMinimize?: () => void;
 }
 
 const STORAGE_KEY = 'dropit_widget_minimized';
 
-export default function FloatWidget({ count, isEmpty, isExpanded, onToggle, onPositionChange }: FloatWidgetProps) {
+export default function FloatWidget({ count, isEmpty, isExpanded, onToggle, onPositionChange, onDoubleClickMinimize }: FloatWidgetProps) {
   const [position, setPosition] = useState({ right: 20, bottom: 20 });
   const [isDragging, setIsDragging] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -102,9 +103,9 @@ export default function FloatWidget({ count, isEmpty, isExpanded, onToggle, onPo
   }, [handleMouseMove, handleMouseUp]);
 
   const getColorClass = () => {
-    if (isEmpty) return 'bg-gray-400 hover:bg-gray-500';
-    if (isExpanded) return 'bg-purple-700 hover:bg-purple-800';
-    return 'bg-violet-500 hover:bg-violet-600';
+    if (isEmpty) return 'bg-stone-400 hover:bg-stone-500';
+    if (isExpanded) return 'bg-slate-700 hover:bg-slate-800';
+    return 'bg-slate-600 hover:bg-slate-700';
   };
 
   // 处理点击：区分单击和双击
@@ -119,6 +120,10 @@ export default function FloatWidget({ count, isEmpty, isExpanded, onToggle, onPo
       const newMinimized = !isMinimized;
       setIsMinimized(newMinimized);
       saveMinimizedState(newMinimized);
+      // 如果是从非最小化切换到最小化，触发回调（用于隐藏引导）
+      if (!isMinimized && newMinimized && onDoubleClickMinimize) {
+        onDoubleClickMinimize();
+      }
     } else {
       // 第一次点击：延迟 200ms 执行单击操作
       clickTimer.current = setTimeout(() => {

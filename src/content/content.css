@@ -30,12 +30,30 @@
   to { opacity: 1; }
 }
 
+@keyframes dropit-tooltip-bounce {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .dropit-slide-in {
-  animation: dropit-slide-in 0.2s ease-out;
+  animation: dropit-slide-in 0.3s ease-out;
 }
 
 .dropit-fade-in {
-  animation: dropit-fade-in 0.15s ease-out;
+  animation: dropit-fade-in 0.3s ease-out;
+}
+
+.dropit-onboarding-tooltip {
+  animation: dropit-tooltip-bounce 0.4s ease-out;
 }
 
 /* 自定义滚动条样式 */
