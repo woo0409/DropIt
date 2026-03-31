@@ -6,6 +6,11 @@ import { StackItem, Settings, STORAGE_KEYS, DEFAULT_SETTINGS } from '../types';
 export type StorageArea = 'sync' | 'local';
 
 /**
+ * 自定义顺序存储键
+ */
+export const CUSTOM_ORDER_KEY = 'dropit_custom_order';
+
+/**
  * 检查扩展上下文是否仍然有效
  * 扩展被重新加载/更新后，旧的 content script 上下文会失效
  */
@@ -39,15 +44,46 @@ class StorageManager {
 
   /**
    * 获取所有栈项
+   * 如果存在自定义顺序，按自定义顺序排列；新项不在自定义顺序中的放在最前面
    */
   async getItems(area: StorageArea = 'sync'): Promise<StackItem[]> {
     this.checkContext();
     return new Promise((resolve, reject) => {
-      this.getStorage(area).get([STORAGE_KEYS.ITEMS], (result) => {
+      this.getStorage(area).get([STORAGE_KEYS.ITEMS, CUSTOM_ORDER_KEY], (result) => {
         if (chrome.runtime.lastError) {
           reject(chrome.runtime.lastError);
         } else {
-          resolve(result[STORAGE_KEYS.ITEMS] || []);
+          const items: StackItem[] = result[STORAGE_KEYS.ITEMS] || [];
+          const customOrder: string[] = result[CUSTOM_ORDER_KEY] || [];
+
+          // 如果没有自定义顺序，直接返回原始列表
+          if (customOrder.length === 0) {
+            resolve(items);
+            return;
+          }
+
+          // 按自定义顺序排列，新项（不在 customOrder 中）放在最前面
+          const orderedItems: StackItem[] = [];
+          const newItems: StackItem[] = [];
+          const orderIdSet = new Set(customOrder);
+
+          for (const item of items) {
+            if (orderIdSet.has(item.id)) {
+              orderedItems.push(item);
+            } else {
+              newItems.push(item);
+            }
+          }
+
+          // 按自定义顺序排序 orderedItems
+          orderedItems.sort((a, b) => {
+            const indexA = customOrder.indexOf(a.id);
+            const indexB = customOrder.indexOf(b.id);
+            return indexA - indexB;
+          });
+
+          // 新项 + 按顺序排列的项
+          resolve([...newItems, ...orderedItems]);
         }
       });
     });
@@ -168,6 +204,38 @@ class StorageManager {
    */
   async clearItems(area: StorageArea = 'sync'): Promise<void> {
     await this.setItems([], area);
+  }
+
+  /**
+   * 保存自定义顺序
+   */
+  async saveCustomOrder(ids: string[], area: StorageArea = 'sync'): Promise<void> {
+    this.checkContext();
+    return new Promise((resolve, reject) => {
+      this.getStorage(area).set({ [CUSTOM_ORDER_KEY]: ids }, () => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  /**
+   * 获取自定义顺序
+   */
+  async getCustomOrder(area: StorageArea = 'sync'): Promise<string[]> {
+    this.checkContext();
+    return new Promise((resolve, reject) => {
+      this.getStorage(area).get([CUSTOM_ORDER_KEY], (result) => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve(result[CUSTOM_ORDER_KEY] || []);
+        }
+      });
+    });
   }
 }
 

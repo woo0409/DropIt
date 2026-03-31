@@ -73,3 +73,10 @@
 .dropit-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(107, 114, 128, 0.7);
 }
+
+/* SortableJS 拖拽时的幽灵元素样式 */
+.dropit-sortable-ghost {
+  opacity: 0.4;
+  background: #e0f2fe !important;
+  border: 2px dashed #3b82f6 !important;
+}

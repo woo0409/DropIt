@@ -10,12 +10,14 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "sortablejs": "^1.15.7",
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@types/chrome": "^0.0.295",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@types/chrome": "^0.0.295",
+    "@types/sortablejs": "^1.15.9",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
