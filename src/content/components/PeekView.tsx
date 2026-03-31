@@ -75,7 +75,6 @@ export default function PeekView({ isOpen, onClose, onQuickPush, widgetPosition 
     // 创建 Sortable 实例
     sortableRef.current = Sortable.create(listRef.current, {
       animation: 150,
-      handle: '.dropit-drag-handle',
       ghostClass: 'dropit-sortable-ghost',
       onEnd: async () => {
         // 获取新的顺序
@@ -218,11 +217,6 @@ export default function PeekView({ isOpen, onClose, onQuickPush, widgetPosition 
                     }`}
                     onClick={() => handleOpen(item)}
                   >
-                    {/* 拖拽手柄 */}
-                    <div className="dropit-drag-handle absolute left-1 top-1/2 -translate-y-1/2 w-5 h-8 flex items-center justify-center text-gray-300 opacity-0 group-hover:opacity-100 hover:text-gray-500 hover:bg-gray-100 rounded cursor-grab active:cursor-grabbing transition-all">
-                      <span className="text-sm leading-none">⋮⋮</span>
-                    </div>
-
                     {/* 删除按钮 */}
                     <button
                       onClick={(e) => handleDeleteClick(e, item.id)}
@@ -236,8 +230,8 @@ export default function PeekView({ isOpen, onClose, onQuickPush, widgetPosition 
                       {isConfirming(item.id) ? '确认？' : '✕'}
                     </button>
 
-                    {/* 内容区域 - 为拖拽手柄留出空间 */}
-                    <div className="pl-5 pr-6">
+                    {/* 内容区域 */}
+                    <div className="pr-6">
                       {/* 标题 */}
                       <h3 className="font-medium text-gray-800 text-sm leading-snug line-clamp-2" title={item.title}>
                         {isTop && <span className="mr-1">📍</span>}

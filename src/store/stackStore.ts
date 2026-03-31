@@ -139,35 +139,35 @@ export const useStackStore = create<StackStore>((set) => ({
   reorder: async (newOrderedIds, area = 'sync') => {
     set({ isLoading: true, error: null });
     try {
-      // 保存自定义顺序到存储
-      await storage.saveCustomOrder(newOrderedIds, area);
-
-      // 根据 newOrderedIds 重排 items 数组
       const currentItems = useStackStore.getState().items;
 
-      // 按新顺序排列，同时保留不在新顺序中的项（新项）放在最前面
-      const reorderedItems: StackItem[] = [];
-      const newItems: StackItem[] = [];
-      const orderIdSet = new Set(newOrderedIds);
+      // newOrderedIds 是显示顺序（top→bottom，即 newest→oldest）
+      // reverse 得到存储顺序（bottom→top，即 oldest→newest）
+      const storageOrder = [...newOrderedIds].reverse();
 
+      // 按存储顺序排列 items
+      const orderedItems: StackItem[] = [];
+      const orderIdSet = new Set(storageOrder);
+
+      // 不在 newOrderedIds 中的项（理论上不应该有，但安全处理）
+      const unmatched: StackItem[] = [];
       for (const item of currentItems) {
         if (orderIdSet.has(item.id)) {
-          reorderedItems.push(item);
+          orderedItems.push(item);
         } else {
-          newItems.push(item);
+          unmatched.push(item);
         }
       }
 
-      // 按 newOrderedIds 的顺序排序
-      reorderedItems.sort((a, b) => {
-        const indexA = newOrderedIds.indexOf(a.id);
-        const indexB = newOrderedIds.indexOf(b.id);
-        return indexA - indexB;
+      // 按 storageOrder 排序
+      orderedItems.sort((a, b) => {
+        return storageOrder.indexOf(a.id) - storageOrder.indexOf(b.id);
       });
 
-      // 新项 + 按顺序排列的项
-      const finalItems = [...newItems, ...reorderedItems];
+      const finalItems = [...unmatched, ...orderedItems];
 
+      // 直接保存 items 数组到 storage
+      await storage.setItems(finalItems, area);
       set({ items: finalItems, isLoading: false });
     } catch (err) {
       set({
